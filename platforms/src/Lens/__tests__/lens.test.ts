@@ -1,6 +1,6 @@
 // ---- Test subject
 import { RequestPayload } from "@gitcoin/passport-types";
-import { LensProfileProvider } from "../Providers/lens";
+import { LensProfileProvider } from "../Providers/lens.js";
 import axios from "axios";
 
 jest.mock("axios");
@@ -21,9 +21,14 @@ describe("Attempt verification", function () {
     mockedAxios.post.mockResolvedValueOnce({
       data: {
         data: {
-          defaultProfile: {
-            id: MOCK_ADDRESS,
-            handle: MOCK_HANDLE,
+          ownedHandles: {
+            items: [
+              {
+                id: MOCK_ADDRESS,
+                fullHandle: MOCK_HANDLE,
+                ownedBy: MOCK_ADDRESS,
+              },
+            ],
           },
         },
       },
@@ -41,6 +46,31 @@ describe("Attempt verification", function () {
         handle: MOCK_HANDLE,
       },
     });
+  });
+
+  it("should return false if owner addresses do not match", async () => {
+    mockedAxios.post.mockResolvedValueOnce({
+      data: {
+        data: {
+          ownedHandles: {
+            items: [
+              {
+                id: MOCK_ADDRESS,
+                fullHandle: MOCK_HANDLE,
+                ownedBy: MOCK_FAKE_ADDRESS,
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    const lens = new LensProfileProvider();
+    const verifiedPayload = await lens.verify({
+      address: MOCK_ADDRESS_LOWER,
+    } as RequestPayload);
+
+    expect(verifiedPayload.valid).toEqual(false);
   });
 
   it("should return false for an address without a lens handle", async () => {
@@ -73,6 +103,6 @@ describe("Attempt verification", function () {
         await lens.verify({
           address: MOCK_ADDRESS_LOWER,
         } as RequestPayload)
-    ).rejects.toThrowError("Error verifying Snapshot proposals: {}.");
+    ).rejects.toThrow("Error verifying Snapshot proposals: {}.");
   });
 });

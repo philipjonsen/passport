@@ -7,30 +7,18 @@ import { CeramicContextState } from "../../../context/ceramicContext";
 import { mockAddress } from "../../../__test-fixtures__/onboardHookValues";
 import { STAMP_PROVIDERS } from "../../../config/providers";
 import { ensStampFixture } from "../../../__test-fixtures__/databaseStorageFixtures";
-import { SUCCESFUL_ENS_RESULT } from "../../../__test-fixtures__/verifiableCredentialResults";
-import { fetchVerifiableCredential } from "@gitcoin/passport-identity/dist/commonjs/src/credentials";
-import {
-  makeTestCeramicContext,
-  makeTestUserContext,
-  renderWithContext,
-} from "../../../__test-fixtures__/contextTestHelpers";
+import { SUCCESSFUL_ENS_RESULT } from "../../../__test-fixtures__/verifiableCredentialResults";
+import { makeTestCeramicContext, renderWithContext } from "../../../__test-fixtures__/contextTestHelpers";
 import { JsonRpcSigner } from "@ethersproject/providers";
-import { mock } from "jest-mock-extended";
+import { vi, describe, it, expect } from "vitest";
 
-jest.mock("@gitcoin/passport-identity/dist/commonjs/src/credentials", () => ({
-  fetchVerifiableCredential: jest.fn(),
+vi.mock("../../utils/credentials", () => ({
+  fetchVerifiableCredential: vi.fn(),
 }));
-jest.mock("../../../utils/onboard.ts");
 
-const mockToggleConnection = jest.fn();
-const mockCreatePassport = jest.fn();
-const mockHandleAddStamp = jest.fn().mockResolvedValue(undefined);
-const mockSigner = mock(JsonRpcSigner) as unknown as JsonRpcSigner;
-const mockUserContext: UserContextState = makeTestUserContext({
-  toggleConnection: mockToggleConnection,
-  address: mockAddress,
-  signer: mockSigner,
-});
+const mockToggleConnection = vi.fn();
+const mockCreatePassport = vi.fn();
+const mockHandleAddStamp = vi.fn().mockResolvedValue(undefined);
 
 const mockCeramicContext: CeramicContextState = makeTestCeramicContext({
   handleCreatePassport: mockCreatePassport,
@@ -67,7 +55,7 @@ describe("when user has not verified with EnsProvider", () => {
 //   });
 
 //   it("should be able to delete the stamp", async () => {
-//     const mockHandleDeleteStamp = jest.fn().mockResolvedValue(undefined);
+//     const mockHandleDeleteStamp = vi.fn().mockResolvedValue(undefined);
 
 //     const mockCeramicContext: CeramicContextState = makeTestCeramicContext({
 //       handleDeleteStamp: mockHandleDeleteStamp,
@@ -117,12 +105,12 @@ describe("when user has not verified with EnsProvider", () => {
 
 // describe("when the verify button is clicked", () => {
 //   afterEach(() => {
-//     jest.clearAllMocks();
+//     vi.clearAllMocks();
 //   });
 
 //   describe("and when a successful ENS result is returned", () => {
 //     beforeEach(() => {
-//       (fetchVerifiableCredential as jest.Mock).mockResolvedValue(SUCCESFUL_ENS_RESULT);
+//       (fetchVerifiableCredential as vi.Mock).mockResolvedValue(SUCCESSFUL_ENS_RESULT);
 //     });
 
 //     it("the modal displays the verify button", async () => {
@@ -188,7 +176,7 @@ describe("when user has not verified with EnsProvider", () => {
 //     });
 
 //     it("clicking cancel closes the modal and a stamp should not be added", async () => {
-//       (fetchVerifiableCredential as jest.Mock).mockResolvedValue(SUCCESFUL_ENS_RESULT);
+//       (fetchVerifiableCredential as vi.Mock).mockResolvedValue(SUCCESSFUL_ENS_RESULT);
 //       renderWithContext(mockUserContext, mockCeramicContext, <EnsCard />);
 
 //       const initialVerifyButton = screen.queryByTestId("button-verify-ens");
@@ -215,7 +203,7 @@ describe("when user has not verified with EnsProvider", () => {
 
 //   describe("and when a failed ENS result is returned", () => {
 //     it("modal displays a failed message", async () => {
-//       (fetchVerifiableCredential as jest.Mock).mockRejectedValue("ERROR");
+//       (fetchVerifiableCredential as vi.Mock).mockRejectedValue("ERROR");
 //       renderWithContext(mockUserContext, mockCeramicContext, <EnsCard />);
 
 //       const initialVerifyButton = screen.queryByTestId("button-verify-ens");

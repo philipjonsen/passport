@@ -1,9 +1,9 @@
 import crypto from "crypto";
 import axios, { AxiosInstance, AxiosResponse } from "axios";
-import { initCacheSession, loadCacheSession, clearCacheSession, PlatformSession } from "../../utils/platform-cache";
+import { initCacheSession, loadCacheSession, clearCacheSession, PlatformSession } from "../../utils/platform-cache.js";
 import { ProviderContext } from "@gitcoin/passport-types";
-import { ProviderInternalVerificationError } from "../../types";
-import { handleProviderAxiosError } from "../../utils/handleProviderAxiosError";
+import { ProviderExternalVerificationError, ProviderInternalVerificationError } from "../../types.js";
+import { handleProviderAxiosError } from "../../utils/handleProviderAxiosError.js";
 
 type IdenaCache = {
   address?: string;
@@ -94,7 +94,7 @@ export type IdenaContext = ProviderContext & {
   idena: {
     address?: string;
     responses: {
-      [key in IdenaMethod]?: AxiosResponse;
+      [key in IdenaMethod]?: AxiosResponse<{ error?: { message?: string } }>;
     };
   };
 };
@@ -167,12 +167,17 @@ const request = async <T>(token: string, context: IdenaContext, method: IdenaMet
   let response = context.idena.responses[method];
   if (!response) {
     try {
-      response = await apiClient().get(method.replace("_address_", address));
+      response = await apiClient().get<{ error?: { message?: string } }>(method.replace("_address_", address));
     } catch (error: unknown) {
       handleProviderAxiosError(error, `Idena ${method}`);
     }
     context.idena.responses[method] = response;
   }
 
-  return { ...response.data, address } as T;
+  const { data } = response;
+  if (data.error?.message) {
+    throw new ProviderExternalVerificationError("Idena API returned error: " + data.error.message);
+  }
+
+  return { ...data, address } as T;
 };

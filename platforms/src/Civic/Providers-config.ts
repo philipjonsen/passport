@@ -1,27 +1,51 @@
-import { PlatformSpec, PlatformGroupSpec, Provider } from "../types";
-import { CivicPassType } from "./Providers/types";
-import { CivicPassProvider } from "./Providers/civic";
+import { PlatformSpec, PlatformGroupSpec, Provider } from "../types.js";
+import { CivicPassType } from "./Providers/types.js";
+import { CivicPassProvider } from "./Providers/civic.js";
 
 export const PlatformDetails: PlatformSpec = {
   icon: "./assets/civicStampIcon.svg",
   platform: "Civic",
   name: "Civic",
-  description: "Civic Profile Verification",
+  description: "Connect to Civic to verify your identity.",
   connectMessage: "Verify Account",
+  website: "https://www.civic.com",
 };
+
+// Check if current date is past the deprecation dates
+const currentDate = new Date();
+const captchaDeprecationDate = new Date("2025-07-01");
+const uniquenessLivenessDeprecationDate = new Date("2025-07-01");
 
 export const ProviderConfig: PlatformGroupSpec[] = [
   {
     platformGroup: "CAPTCHA Pass",
-    providers: [{ title: "holds a Civic CAPTCHA Pass", name: "CivicCaptchaPass" }],
+    providers: [
+      {
+        title: "holds a Civic CAPTCHA Pass",
+        name: "CivicCaptchaPass",
+        isDeprecated: currentDate >= captchaDeprecationDate,
+      },
+    ],
   },
   {
     platformGroup: "Uniqueness Pass",
-    providers: [{ title: "holds a Civic Uniqueness Pass", name: "CivicUniquenessPass" }],
+    providers: [
+      {
+        title: "holds a Civic Uniqueness Pass",
+        name: "CivicUniquenessPass",
+        isDeprecated: currentDate >= uniquenessLivenessDeprecationDate,
+      },
+    ],
   },
   {
     platformGroup: "Liveness Pass",
-    providers: [{ title: "holds a Civic Liveness Pass", name: "CivicLivenessPass" }],
+    providers: [
+      {
+        title: "holds a Civic Liveness Pass",
+        name: "CivicLivenessPass",
+        isDeprecated: currentDate >= uniquenessLivenessDeprecationDate,
+      },
+    ],
   },
 ];
 

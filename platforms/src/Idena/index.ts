@@ -1,11 +1,9 @@
 // Idena Platform
-export { IdenaPlatform } from "./App-Bindings";
-export { IdenaAge5Provider, IdenaAge10Provider } from "./Providers/IdenaAgeProvider";
-export { IdenaStake1kProvider, IdenaStake10kProvider, IdenaStake100kProvider } from "./Providers/IdenaStakeProvider";
+export { IdenaPlatform } from "./App-Bindings.js";
 export {
   IdenaStateNewbieProvider,
   IdenaStateVerifiedProvider,
   IdenaStateHumanProvider,
-} from "./Providers/IdenaStateProvider";
+} from "./Providers/IdenaStateProvider.js";
 
-export { PlatformDetails, ProviderConfig, providers } from "./Providers-config";
+export { PlatformDetails, ProviderConfig, providers } from "./Providers-config.js";

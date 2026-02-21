@@ -1,12 +1,12 @@
 // TODO - Remove once ts lint has been unified across packages
-/* eslint-disable @typescript-eslint/require-await */
+
 // ---- Test subject
-import { ClearTextTwitterProvider } from "../Providers/clearTextTwitter";
+import { ClearTextTwitterProvider } from "../Providers/clearTextTwitter.js";
 
 import { RequestPayload } from "@gitcoin/passport-types";
 import { TwitterApi } from "twitter-api-v2";
-import { getAuthClient, getTwitterUserData, TwitterUserData } from "../../Twitter/procedures/twitterOauth";
-import { ProviderExternalVerificationError } from "../../types";
+import { getAuthClient, getTwitterUserData, TwitterUserData } from "../../Twitter/procedures/twitterOauth.js";
+import { ProviderExternalVerificationError } from "../../types.js";
 
 jest.mock("../../Twitter/procedures/twitterOauth", () => ({
   getAuthClient: jest.fn(),
@@ -44,8 +44,8 @@ describe("Attempt verification", function () {
       {}
     );
 
-    expect(getAuthClient).toBeCalledWith(sessionKey, code, {});
-    expect(getTwitterUserData).toBeCalled();
+    expect(getAuthClient).toHaveBeenCalledWith(sessionKey, code, {});
+    expect(getTwitterUserData).toHaveBeenCalled();
     expect(verifiedPayload).toEqual({
       valid: true,
       record: {

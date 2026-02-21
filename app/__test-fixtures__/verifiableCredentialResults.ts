@@ -1,32 +1,40 @@
 import { CredentialResponseBody, VerifiableCredential, VerifiableCredentialRecord } from "@gitcoin/passport-types";
 
-const credential: VerifiableCredential = {
+export const credential: VerifiableCredential = {
   "@context": ["https://www.w3.org/2018/credentials/v1"],
   type: ["VerifiableCredential"],
   credentialSubject: {
     id: "did:ethr:Test",
-    "@context": [
-      {
-        hash: "https://schema.org/Text",
-        provider: "https://schema.org/Text",
-      },
-    ],
+    "@context": {
+      hash: "https://schema.org/Text",
+      provider: "https://schema.org/Text",
+    },
     hash: "randomValuesHash",
     provider: "Ens",
   },
   issuer: "did:key:randomValuesIssuer",
   issuanceDate: "2022-04-15T21:04:01.708Z",
   proof: {
-    type: "Ed25519Signature2018",
+    "@context": "https://www.w3.org/2018/credentials/v1",
+    type: "EIP712",
     proofPurpose: "assertionMethod",
     verificationMethod: "did:key:randomValues",
     created: "2022-04-15T21:04:01.708Z",
-    jws: "randomValues",
+    proofValue: "randomValuesProofValue",
+    eip712Domain: {
+      domain: {
+        name: "randomValuesDomainName",
+      },
+      primaryType: "randomValuesPrimaryType",
+      types: {
+        "@context": [{ name: "dummy", type: "string" }],
+      },
+    },
   },
   expirationDate: "2022-05-15T21:04:01.708Z",
 };
 
-export const SUCCESFUL_ENS_RESULT: VerifiableCredentialRecord = {
+export const SUCCESSFUL_ENS_RESULT: VerifiableCredentialRecord = {
   record: {
     type: "Ens",
     address: "0xcF323CE817E25b4F784bC1e14c9A99A525fDC50f",
@@ -38,17 +46,17 @@ export const SUCCESFUL_ENS_RESULT: VerifiableCredentialRecord = {
   credential: credential,
 };
 
-export const SUCCESFUL_ENS_RESULTS: CredentialResponseBody = {
+export const SUCCESSFUL_ENS_RESULTS: CredentialResponseBody = {
   record: { type: "Ens", version: "0.0.0", ens: "jimmyjim.eth" },
   credential,
 };
 
 export const UN_SUCCESSFUL_ENS_RESULT: CredentialResponseBody = {
-  record: { type: "Ens", version: "0.0.0", ens: "jimmyjim.eth" },
-  credential,
+  code: 403,
+  error: "You can't claim this stamp",
 };
 
-export const SUCCESFUL_POAP_RESULT: VerifiableCredentialRecord = {
+export const SUCCESSFUL_POAP_RESULT: VerifiableCredentialRecord = {
   record: {
     type: "POAP",
     address: "0xcF323CE817E25b4F784bC1e14c9A99A525fDC50f",
@@ -60,7 +68,7 @@ export const SUCCESFUL_POAP_RESULT: VerifiableCredentialRecord = {
   credential: credential,
 };
 
-export const SUCCESFUL_POH_RESULT: VerifiableCredentialRecord = {
+export const SUCCESSFUL_POH_RESULT: VerifiableCredentialRecord = {
   record: {
     type: "Poh",
     address: "0xcF323CE817E25b4F784bC1e14c9A99A525fDC50f",
@@ -72,7 +80,7 @@ export const SUCCESFUL_POH_RESULT: VerifiableCredentialRecord = {
   credential: credential,
 };
 
-export const SUCCESFUL_BRIGHTID_RESULT: VerifiableCredentialRecord = {
+export const SUCCESSFUL_BRIGHTID_RESULT: VerifiableCredentialRecord = {
   record: {
     type: "Brightid",
     address: "0xcF323CE817E25b4F784bC1e14c9A99A525fDC50f",

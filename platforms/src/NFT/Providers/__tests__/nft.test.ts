@@ -1,12 +1,11 @@
 /* eslint-disable */
 // ---- Test subject
-import { getNFTEndpoint, NFTProvider } from "../nft";
+import { getNFTEndpoint, NFTProvider } from "../nft.js";
 
 import { RequestPayload } from "@gitcoin/passport-types";
 
 // ----- Libs
 import axios from "axios";
-import { ProviderExternalVerificationError } from "../../../types";
 
 jest.mock("axios");
 
@@ -18,31 +17,42 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
+const mockTokenAddress = "0x06012c8cf97bead5deae237070f9587f8e7a266d";
+const mockTokenId = "100000";
+const tokenType = "ERC721";
+
+const mockContracts = [
+  {
+    address: mockTokenAddress,
+    tokenId: mockTokenId,
+    tokenType,
+  },
+];
+
 describe("Attempt verification", function () {
   it.each([
     [400, 1, false],
     [500, 200, false],
   ])(
-    " - when exeption is thrown with status of %p and totalCount is %p valid es expected to be %p",
+    " - when exception is thrown with status of %p and totalCount is %p valid es expected to be %p",
     async (httpStatus, totalCount: number, expectedValid: boolean) => {
-      (axios.get as jest.Mock).mockRejectedValueOnce("bad request");
+      (axios.get as jest.Mock).mockImplementationOnce(() => {
+        throw new Error("bad request");
+      });
       const nftProvider = new NFTProvider();
       await expect(async () => {
         return await nftProvider.verify({
           address: MOCK_ADDRESS,
         } as unknown as RequestPayload);
-      }).rejects.toThrow(
-        // eslint-disable-next-line quotes
-        new ProviderExternalVerificationError("NFT check error: {}")
-      );
+      }).rejects.toThrow(new Error("bad request"));
 
       // Check the request to get the NFTs
       expect(axios.get).toHaveBeenCalledTimes(1);
       expect(mockedAxios.get).toBeCalledWith(getNFTEndpoint(), {
         params: {
-          withMetadata: "false",
+          withMetadata: "true",
           owner: MOCK_ADDRESS_LOWER,
-          pageSize: 1,
+          orderBy: "transferTime",
         },
       });
     }
@@ -53,7 +63,7 @@ describe("Attempt verification", function () {
         status: 200,
         data: {
           totalCount: 0,
-          ownedNfts: [],
+          contracts: [],
         },
       });
     });
@@ -67,7 +77,7 @@ describe("Attempt verification", function () {
     expect(nftPayload).toEqual({
       valid: false,
       record: undefined,
-      errors: ["You do not have the required amount of NFTs -- Your NFT count: 0."],
+      errors: ["You do not own any NFTs."],
     });
   });
   it.each([
@@ -81,7 +91,7 @@ describe("Attempt verification", function () {
           status: httpStatus,
           data: {
             totalCount: totalCount,
-            ownedNfts: [],
+            contracts: mockContracts,
           },
         });
       });
@@ -96,19 +106,44 @@ describe("Attempt verification", function () {
       expect(axios.get).toHaveBeenCalledTimes(1);
       expect(mockedAxios.get).toBeCalledWith(getNFTEndpoint(), {
         params: {
-          withMetadata: "false",
+          withMetadata: "true",
           owner: MOCK_ADDRESS_LOWER,
-          pageSize: 1,
+          orderBy: "transferTime",
         },
       });
       expect(nftPayload).toEqual({
         valid: true,
         record: {
-          address: MOCK_ADDRESS_LOWER,
-          "NFT#numNFTsGte": "1",
+          tokenAddress: mockTokenAddress,
+          tokenId: mockTokenId,
         },
         errors: [],
       });
     }
   );
+  it("should not validate an ERC1155 token", async () => {
+    (axios.get as jest.Mock).mockImplementation((url) => {
+      return Promise.resolve({
+        status: 200,
+        data: {
+          totalCount: 1,
+          contracts: [
+            {
+              ...mockContracts[0],
+              tokenType: "ERC1155",
+            },
+          ],
+        },
+      });
+    });
+
+    const nftProvider = new NFTProvider();
+
+    await expect(
+      async () =>
+        await nftProvider.verify({
+          address: MOCK_ADDRESS,
+        } as unknown as RequestPayload)
+    ).rejects.toThrowError("Unable to find an ERC721 token that you own.");
+  });
 });

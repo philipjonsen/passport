@@ -1,12 +1,19 @@
 import axios from "axios";
-import { AppContext, ProviderPayload } from "../types";
-import { Platform } from "../utils/platform";
+import { AppContext, ProviderPayload } from "../types.js";
+import { Platform } from "../utils/platform.js";
 
 export class BrightidPlatform extends Platform {
   platformId = "Brightid";
   path = "brightid";
   clientId: string = null;
   redirectUri: string = null;
+
+  banner = {
+    cta: {
+      label: "Learn more",
+      url: "https://support.passport.xyz/passport-knowledge-base/stamps/how-do-i-add-passport-stamps/connecting-brightid-to-passport",
+    },
+  };
 
   async handleVerifyContextId(userDid: string): Promise<boolean> {
     try {

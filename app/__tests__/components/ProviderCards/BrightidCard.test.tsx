@@ -1,36 +1,14 @@
-import React from "react";
-import { render, screen, fireEvent, waitFor, waitForElementToBeRemoved } from "@testing-library/react";
-import { BrightidCard } from "../../../components/PlatformCards";
-
-import { UserContext, UserContextState } from "../../../context/userContext";
-import { mockAddress, mockWallet } from "../../../__test-fixtures__/onboardHookValues";
-import { STAMP_PROVIDERS } from "../../../config/providers";
-import { brightidStampFixture } from "../../../__test-fixtures__/databaseStorageFixtures";
-import { SUCCESFUL_BRIGHTID_RESULT } from "../../../__test-fixtures__/verifiableCredentialResults";
-import { fetchVerifiableCredential } from "@gitcoin/passport-identity/dist/commonjs/src/credentials";
-import { mock } from "jest-mock-extended";
-import { JsonRpcSigner } from "@ethersproject/providers";
-import {
-  makeTestCeramicContext,
-  makeTestUserContext,
-  renderWithContext,
-} from "../../../__test-fixtures__/contextTestHelpers";
+import { vi, describe, it, expect } from "vitest";
+import { makeTestCeramicContext } from "../../../__test-fixtures__/contextTestHelpers";
 import { CeramicContextState } from "../../../context/ceramicContext";
 
-jest.mock("@gitcoin/passport-identity/dist/commonjs/src/credentials", () => ({
-  fetchVerifiableCredential: jest.fn(),
+vi.mock("../../utils/credentials", () => ({
+  fetchVerifiableCredential: vi.fn(),
 }));
-jest.mock("../../../utils/onboard.ts");
 
-const mockToggleConnection = jest.fn();
-const mockCreatePassport = jest.fn();
-const mockHandleAddStamp = jest.fn().mockResolvedValue(undefined);
-const mockSigner = mock(JsonRpcSigner) as unknown as JsonRpcSigner;
-const mockUserContext: UserContextState = makeTestUserContext({
-  toggleConnection: mockToggleConnection,
-  address: mockAddress,
-  signer: mockSigner,
-});
+const mockToggleConnection = vi.fn();
+const mockCreatePassport = vi.fn();
+const mockHandleAddStamp = vi.fn().mockResolvedValue(undefined);
 
 const mockCeramicContext: CeramicContextState = makeTestCeramicContext({
   userDid: "mockUserDid",
@@ -51,7 +29,7 @@ function setupFetchStub(valid: any) {
   };
 }
 
-describe("when user has not verfied with BrightId Provider", () => {
+describe("when user has not verified with BrightId Provider", () => {
   it("should display a verify button", () => {
     // renderWithContext(mockUserContext, mockCeramicContext, <BrightidCard />);
     // const initialVerifyButton = screen.queryByTestId("button-verify-brightid");
@@ -81,7 +59,7 @@ describe("when user has not verfied with BrightId Provider", () => {
 //   });
 
 //   it("should be able to delete the stamp", async () => {
-//     const mockHandleDeleteStamp = jest.fn().mockResolvedValue(undefined);
+//     const mockHandleDeleteStamp = vi.fn().mockResolvedValue(undefined);
 
 //     const mockCeramicContext: CeramicContextState = makeTestCeramicContext({
 //       handleDeleteStamp: mockHandleDeleteStamp,
@@ -134,17 +112,17 @@ describe("when user has not verfied with BrightId Provider", () => {
 //   let originalFetch: any;
 //   beforeEach(() => {
 //     originalFetch = global.fetch;
-//     global.fetch = jest.fn().mockImplementation(setupFetchStub(true));
+//     global.fetch = vi.fn().mockImplementation(setupFetchStub(true));
 //   });
 
 //   afterEach(() => {
 //     global.fetch = originalFetch;
-//     jest.clearAllMocks();
+//     vi.clearAllMocks();
 //   });
 
 //   describe("and when a successful BrightId result is returned", () => {
 //     beforeEach(() => {
-//       (fetchVerifiableCredential as jest.Mock).mockResolvedValue(SUCCESFUL_BRIGHTID_RESULT);
+//       (fetchVerifiableCredential as vi.Mock).mockResolvedValue(SUCCESSFUL_BRIGHTID_RESULT);
 //     });
 
 //     it("the modal displays the verify button", async () => {
@@ -197,7 +175,7 @@ describe("when user has not verfied with BrightId Provider", () => {
 //     });
 
 //     it("clicking cancel closes the modal and a stamp should not be added", async () => {
-//       (fetchVerifiableCredential as jest.Mock).mockResolvedValue(SUCCESFUL_BRIGHTID_RESULT);
+//       (fetchVerifiableCredential as vi.Mock).mockResolvedValue(SUCCESSFUL_BRIGHTID_RESULT);
 //       renderWithContext(mockUserContext, mockCeramicContext, <BrightidCard />);
 
 //       const initialVerifyButton = screen.queryByTestId("button-verify-brightid");
@@ -224,8 +202,8 @@ describe("when user has not verfied with BrightId Provider", () => {
 
 //   describe("and when a failed Bright Id result is returned", () => {
 //     it("modal displays steps to get sponsored", async () => {
-//       global.fetch = jest.fn().mockImplementation(setupFetchStub(false));
-//       (fetchVerifiableCredential as jest.Mock).mockRejectedValue("ERROR");
+//       global.fetch = vi.fn().mockImplementation(setupFetchStub(false));
+//       (fetchVerifiableCredential as vi.Mock).mockRejectedValue("ERROR");
 //       renderWithContext(mockUserContext, mockCeramicContext, <BrightidCard />);
 
 //       const initialVerifyButton = screen.queryByTestId("button-verify-brightid");

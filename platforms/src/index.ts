@@ -1,12 +1,9 @@
 // Provider Utils
-import { Providers } from "./utils/providers";
-import { SimpleProvider } from "./utils/simpleProvider";
-import { SimpleEvmProvider } from "./utils/simpleEvmProvider";
-import { ClearTextSimpleProvider } from "./utils/clearTextSimpleProvider";
-import { ClearTextTwitterProvider, ClearTextGithubOrgProvider } from "./ClearText";
-
-import platforms from "./platforms";
-import { ethers } from "ethers";
+import platforms from "./platforms.js";
+import { PlatformConfig } from "./platforms.js";
+import { createProviders } from "./utils/createProviders.js";
+import { keccak256, toUtf8Bytes } from "ethers";
+import { PlatformGroupSpec } from "./types.js";
 
 // Check that all platforms have a ProviderConfig, PlatformDetails, and providers
 Object.entries(platforms).map(([platformName, platform]) => {
@@ -16,32 +13,87 @@ Object.entries(platforms).map(([platformName, platform]) => {
   if (!providers?.length) throw new Error(`No providers defined in ${platformName}/Providers-config.ts`);
 });
 
-const platformProviders = Object.values(platforms)
-  .map((platform) => platform.providers)
-  .flat();
-
 // Set hash on each provider spec
 Object.values(platforms).map(({ ProviderConfig }) => {
   ProviderConfig.map(({ providers }) => {
     providers.map((provider) => {
-      provider.hash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(provider.name));
+      provider.hash = keccak256(toUtf8Bytes(provider.name));
     });
   });
 });
 
-export const providers = new Providers([
-  // Example provider which verifies the payload when `payload.proofs.valid === "true"`
-  new SimpleProvider(),
-  new SimpleEvmProvider(),
-  new ClearTextSimpleProvider(),
-  new ClearTextTwitterProvider(),
-  new ClearTextGithubOrgProvider(),
-  ...platformProviders,
-]);
+// This is used in tests & IAM only, not in the app
+export const providers = createProviders(platforms);
 
-export * from "./types";
-export { Platform as PlatformClass } from "./utils/platform";
+const skipPlatforms = ["ClearText"];
+
+type StampData = {
+  name: string;
+  description: string;
+  hash: string;
+};
+
+type GroupData = {
+  name: string;
+  stamps: StampData[];
+};
+
+type PlatformData = {
+  name: string;
+  icon: string;
+  description: string;
+  connectMessage: string;
+  groups: GroupData[];
+};
+
+const formatPlatformGroups = (providerConfig: PlatformGroupSpec[]) =>
+  providerConfig.reduce(
+    (groups: GroupData[], group: PlatformGroupSpec) => [
+      ...groups,
+      {
+        name: group.platformGroup,
+        stamps: group.providers.map(({ name, title, hash }) => {
+          if (!hash) {
+            throw new Error(`No hash defined for ${name}`);
+          }
+          return {
+            name,
+            hash,
+            description: title,
+          };
+        }),
+      },
+    ],
+    [] as GroupData[]
+  );
+
+export const platformsData = Object.entries(platforms).reduce((data, [id, platform]) => {
+  if (skipPlatforms.includes(id)) return data;
+
+  const { name, icon, description, connectMessage } = platform.PlatformDetails;
+  if (!icon) throw new Error(`No icon defined for ${id}`);
+
+  const groups = formatPlatformGroups(platform.ProviderConfig);
+
+  return [
+    ...data,
+    {
+      id,
+      name,
+      icon,
+      description,
+      connectMessage,
+      groups,
+    },
+  ];
+}, [] as PlatformData[]);
+
+export * from "./types.js";
+export { type PlatformConfig };
+export { Platform as PlatformClass } from "./utils/platform.js";
 export { platforms as platforms };
-export { initCacheSession, loadCacheSession, clearCacheSession } from "./utils/platform-cache";
-export { handleAxiosError } from "./utils/handleAxiosError";
-export { PassportCache } from "./utils/passport-cache";
+export { initCacheSession, loadCacheSession, clearCacheSession } from "./utils/platform-cache.js";
+export { handleAxiosError } from "./utils/handleAxiosError.js";
+export { PassportCache } from "./utils/passport-cache.js";
+export { PlatformPreCheckError } from "./utils/platform.js";
+export { Hyperlink } from "./utils/Hyperlink.js";

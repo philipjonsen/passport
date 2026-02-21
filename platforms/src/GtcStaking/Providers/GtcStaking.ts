@@ -1,41 +1,55 @@
 // ----- Types
-import { ProviderExternalVerificationError, type Provider } from "../../types";
+import { ProviderExternalVerificationError, ProviderInternalVerificationError, type Provider } from "../../types.js";
 import type { ProviderContext, PROVIDER_ID, RequestPayload, VerifiedPayload } from "@gitcoin/passport-types";
-
-// ----- Ethers library
-import { BigNumber } from "ethers";
 
 // ----- Libs
 import axios from "axios";
-import { handleProviderAxiosError } from "../../utils/handleProviderAxiosError";
+import { handleProviderAxiosError } from "../../utils/handleProviderAxiosError.js";
 
-// List of subgraphs to check
-export const stakingSubgraph = `https://gateway.thegraph.com/api/${process.env.GTC_STAKING_GRAPH_API_KEY}/subgraphs/id/6neBRm8wdXfbH9WQuFeizJRpsom4qovuqKhswPBRTC5Q`;
+import { BigNumber } from "bignumber.js";
+
+export const gtcStakingEndpoint = `${process.env.SCORER_ENDPOINT}/internal/stake/legacy-gtc`;
+export const gtcStakingEndpointV2 = `${process.env.SCORER_ENDPOINT}/internal/stake/gtc`;
 
 type UserStake = {
   selfStake: BigNumber;
-  communityStake: BigNumber;
+  communityStakes: Stake[];
+  communityStakesV2: StakeV2[];
+  error?: string;
 };
 
-// Defining interfaces for the data structure returned by the subgraph
-interface Stake {
-  stake: string;
-}
+export type Stake = {
+  id: number;
+  event_type: string;
+  round_id: number;
+  staker: string;
+  address: string;
+  amount: string;
+  staked: boolean;
+  block_number: number;
+  tx_hash: string;
+};
 
-interface XStake {
-  total: string;
-}
-
-interface User {
-  stakes: Stake[];
-  xstakeAggregates: XStake[];
-}
+export type StakeV2 = {
+  id: number;
+  chain: number;
+  lock_time: string;
+  unlock_time: string;
+  staker: string;
+  stakee: string;
+  amount: string;
+};
 
 export interface StakeResponse {
   data: {
-    data: {
-      users: User[];
-    };
+    results: Stake[];
+  };
+}
+
+export interface StakeV2Response {
+  status: number;
+  data: {
+    items: StakeV2[];
   };
 }
 
@@ -47,97 +61,109 @@ export type GtcStakingContext = ProviderContext & {
 
 export type GtcStakingProviderOptions = {
   type: PROVIDER_ID;
-  weiThreshold: BigNumber;
-  dataKey: keyof UserStake;
-  // Only needed for historic hashes, can be left
-  // off of any new providers
-  identifier?: string;
+  thresholdAmount: BigNumber;
+};
+
+export type RoundData = {
+  id: number;
+  start: number;
+  duration: number;
 };
 
 export class GtcStakingProvider implements Provider {
   type: PROVIDER_ID;
-  weiThreshold: BigNumber;
-  dataKey: keyof UserStake;
-  identifier: string;
+  thresholdAmount: BigNumber;
 
   // construct the provider instance with supplied options
   constructor(options: GtcStakingProviderOptions) {
     this.type = options.type;
-    this.weiThreshold = options.weiThreshold;
-    this.dataKey = options.dataKey;
-    this.identifier = options.identifier;
+    this.thresholdAmount = options.thresholdAmount;
   }
 
-  // verify that the proof object contains valid === "true"
-  async verify(payload: RequestPayload, context: GtcStakingContext): Promise<VerifiedPayload> {
+  verify(_payload: RequestPayload, _context: GtcStakingContext): Promise<VerifiedPayload> {
+    throw new Error("Method not implemented, this base class should not be used directly");
+  }
+
+  getAddress(payload: RequestPayload): string {
+    const address = payload.address.toLowerCase();
+    if (!address || address.substring(0, 2) !== "0x" || address.length !== 42) {
+      throw new ProviderInternalVerificationError("Not a proper ethereum address");
+    }
+    return address;
+  }
+
+  getCurrentRound(): number {
+    const stakingRounds = JSON.parse(process.env.GTC_STAKING_ROUNDS) as RoundData[];
+    const currentRound = stakingRounds.find((round) => {
+      const now = Date.now() / 1000;
+      return now >= round.start && now < round.start + round.duration;
+    });
+    return currentRound?.id || 0;
+  }
+
+  async getStakes(payload: RequestPayload, context: GtcStakingContext): Promise<UserStake> {
     try {
-      const errors: string[] = [];
-      let record = undefined;
-      const stakeData = await verifyStake(payload, context);
-      const stakeAmount = stakeData[this.dataKey];
+      if (!context.gtcStaking?.userStake) {
+        const round = this.getCurrentRound();
+        const address = payload.address.toLowerCase();
 
-      const valid = stakeAmount.gte(this.weiThreshold);
-      if (valid) {
-        record = {
-          address: payload.address,
-          stakeAmount: this.identifier,
-        };
-      } else {
-        errors.push(
-          `Your current GTC staking amount is ${String(stakeAmount)}, which is below the requirement for this stamp.`
+        // Verify id staking legacy
+        const selfStakes: Stake[] = [];
+        const communityStakes: Stake[] = [];
+
+        const response: StakeResponse = await axios.get(`${gtcStakingEndpoint}/${address}/${round}`, {
+          headers: { Authorization: process.env.SCORER_API_KEY },
+        });
+        const results: Stake[] = response?.data?.results || [];
+
+        // Verify id staking V2
+        const communityStakesV2: StakeV2[] = [];
+
+        const responseV2: StakeV2Response = await axios.get(`${gtcStakingEndpointV2}/${address}`, {
+          headers: { Authorization: process.env.SCORER_API_KEY },
+        });
+        const resultsV2: StakeV2[] = responseV2?.data?.items || [];
+
+        if (results.length == 0 && resultsV2.length == 0)
+          throw new ProviderExternalVerificationError("No results returned from the GTC Staking API");
+
+        // V0
+        results.forEach((stake: Stake) =>
+          stake.event_type === "SelfStake" ? selfStakes.push(stake) : communityStakes.push(stake)
         );
-      }
 
-      return {
-        valid,
-        record,
-        errors,
-      };
-    } catch (e: unknown) {
-      throw new ProviderExternalVerificationError(`${this.type} verifyStake: ${String(e)}.`);
+        // V2
+        let selfStakeV2 = new BigNumber(0);
+        resultsV2.forEach((stake: StakeV2) => {
+          if (stake.staker == stake.stakee) {
+            if (new Date(stake.unlock_time) > new Date()) {
+              selfStakeV2 = selfStakeV2.plus(new BigNumber(stake.amount));
+            }
+          } else {
+            communityStakesV2.push(stake);
+          }
+        });
+
+        const selfStake: BigNumber = selfStakes.reduce((totalStake, currentStake) => {
+          if (currentStake.staked === true) {
+            return totalStake.plus(new BigNumber(currentStake.amount));
+          } else {
+            return totalStake.minus(new BigNumber(currentStake.amount));
+          }
+        }, new BigNumber(0));
+
+        if (!context.gtcStaking) context.gtcStaking = {};
+
+        const totalSelfStaked = selfStake.plus(selfStakeV2); // Return total from legacy self staked & V2 self staked
+        context.gtcStaking.userStake = {
+          selfStake: totalSelfStaked,
+          communityStakes,
+          communityStakesV2,
+        };
+      }
+    } catch (error) {
+      handleProviderAxiosError(error, "Verify GTC stake", [payload.address]);
     }
+    return context.gtcStaking.userStake;
   }
-}
-
-export function getStakeQuery(address: string, round: string): string {
-  return `
-  {
-    users(where: {address: "${address}"}) {
-      stakes(where: {round: "${round}"}) {
-        stake
-      }
-      xstakeAggregates(where: {round: "${round}", total_gt: 0}) {
-        total
-      }
-    }
-  }
-  `;
-}
-
-async function verifyStake(payload: RequestPayload, context: GtcStakingContext): Promise<UserStake> {
-  try {
-    if (!context.gtcStaking?.userStake) {
-      const round = process.env.GTC_STAKING_ROUND || "1";
-      const address = payload.address.toLowerCase();
-
-      if (!address || address.substring(0, 2) !== "0x") {
-        throw Error("Not a proper address");
-      }
-
-      const response: StakeResponse = await axios.post(stakingSubgraph, {
-        query: getStakeQuery(address, round),
-      });
-
-      // Array of self stakes on the user
-      const selfStake = BigNumber.from(response?.data?.data?.users[0]?.stakes[0]?.stake || "0");
-      const communityStake = BigNumber.from(response?.data?.data?.users[0]?.xstakeAggregates[0]?.total || "0");
-
-      if (!context.gtcStaking) context.gtcStaking = {};
-
-      context.gtcStaking.userStake = { selfStake, communityStake };
-    }
-  } catch (error) {
-    handleProviderAxiosError(error, "Verify GTC stake", [payload.address]);
-  }
-  return context.gtcStaking.userStake;
 }

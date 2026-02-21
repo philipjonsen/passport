@@ -1,7 +1,7 @@
 // ----- Types
 import type { ProviderContext, RequestPayload, VerifiedPayload } from "@gitcoin/passport-types";
-import { ProviderExternalVerificationError, type Provider, type ProviderOptions } from "../../types";
-import { ProviderError } from "../../utils/errors";
+import { ProviderExternalVerificationError, type Provider, type ProviderOptions } from "../../types.js";
+import { ProviderError } from "../../utils/errors.js";
 import axios from "axios";
 
 export type GitcoinGrantStatistics = {
@@ -14,6 +14,8 @@ export type GitcoinGrantProviderOptions = {
   receivingAttribute: string;
   recordAttribute: string;
 };
+
+const CGRANTS_API_URL = process.env.SCORER_ENDPOINT + "/internal/cgrants";
 
 // Export a Gitcoin Provider. This is intended to be a generic implementation that should be extended
 export class GitcoinGrantStatisticsProvider implements Provider {
@@ -42,7 +44,7 @@ export class GitcoinGrantStatisticsProvider implements Provider {
       gitcoinGrantsStatistic;
     const errors = [];
     try {
-      const dataUrl = process.env.CGRANTS_API_URL + this.urlPath;
+      const dataUrl = CGRANTS_API_URL + this.urlPath;
       const address = payload.address.toLowerCase();
       gitcoinGrantsStatistic = await getGitcoinStatistics(dataUrl, address, context);
 
@@ -96,10 +98,12 @@ const getGitcoinStatistics = async (
       if (!context.gitcoinGrantStatistics) context.gitcoinGrantStatistics = {};
 
       const grantStatisticsRequest = await axios.get(`${dataUrl}?address=${address}`, {
-        headers: { Authorization: process.env.CGRANTS_API_TOKEN },
+        headers: { Authorization: process.env.SCORER_API_KEY },
       });
 
-      context.gitcoinGrantStatistics[dataUrl] = { record: grantStatisticsRequest.data } as GitcoinGrantStatistics;
+      context.gitcoinGrantStatistics[dataUrl] = {
+        record: grantStatisticsRequest.data,
+      } as GitcoinGrantStatistics;
     } catch (_error) {
       const error = _error as ProviderError;
       context.gitcoinGrantStatistics[dataUrl] = {

@@ -2,10 +2,9 @@
 import { datadogLogs } from "@datadog/browser-logs";
 
 // --- Identity tools
-import { fetchChallengeCredential } from "@gitcoin/passport-identity/dist/commonjs/src/credentials";
 import { CheckResponseBody, Passport, PLATFORM_ID, PROVIDER_ID, VerifiableCredential } from "@gitcoin/passport-types";
 import { PlatformProps } from "../components/GenericPlatform";
-import { PlatformGroupSpec } from "../config/providers";
+import { PlatformGroupSpec } from "@gitcoin/passport-platforms";
 
 import axios from "axios";
 import { iamUrl } from "../config/stamp_config";
@@ -25,14 +24,23 @@ export type ValidatedPlatform = {
   platformProps: PlatformProps;
 };
 
-const getTypesToCheck = (evmPlatforms: PlatformProps[], passport: Passport | undefined | false): PROVIDER_ID[] => {
+export const getTypesToCheck = (
+  evmPlatforms: PlatformProps[],
+  passport: Passport | undefined | false,
+  reIssueStamps: boolean = false
+): PROVIDER_ID[] => {
   const existingProviders = passport && passport.stamps.map((stamp) => stamp.provider);
 
+  // Exclude deprecated providers - they can't be verified
   const evmProviders: PROVIDER_ID[] = evmPlatforms
-    .map(({ platFormGroupSpec }) => platFormGroupSpec.map(({ providers }) => providers.map(({ name }) => name)))
+    .map(({ platFormGroupSpec }) =>
+      platFormGroupSpec.map(({ providers }) =>
+        providers.filter((provider) => !provider.isDeprecated).map(({ name }) => name)
+      )
+    )
     .flat(2);
 
-  if (existingProviders) {
+  if (existingProviders && !reIssueStamps) {
     return evmProviders.filter((provider) => !existingProviders.includes(provider));
   } else {
     return evmProviders;
@@ -46,14 +54,15 @@ const filterUndefined = <T>(item: T | undefined): item is T => !!item;
 export const fetchPossibleEVMStamps = async (
   address: string,
   allPlatforms: Map<PLATFORM_ID, PlatformProps>,
-  passport: Passport | undefined | false
+  passport: Passport | undefined | false,
+  reIssueStamps: boolean = false
 ): Promise<ValidatedPlatform[]> => {
   const allPlatformsData = Array.from(allPlatforms.values());
-  const evmPlatforms: PlatformProps[] = allPlatformsData.filter(({ platform }) => platform.isEVM);
+  const evmPlatforms: PlatformProps[] = allPlatformsData.filter(({ isEVM }) => isEVM);
 
   const payload = {
     type: "bulk",
-    types: getTypesToCheck(evmPlatforms, passport),
+    types: getTypesToCheck(evmPlatforms, passport, reIssueStamps),
     address,
     version: "0.0.0",
   };
@@ -73,10 +82,12 @@ export const fetchPossibleEVMStamps = async (
     []
   );
 
-  // Define helper functions to filter out invalid providers and groups
+  // Define helper functions to filter out invalid and deprecated providers and groups
   const getValidGroupProviders = (groupSpec: PlatformGroupSpec): ValidatedProvider[] =>
     groupSpec.providers.reduce((providers: ValidatedProvider[], provider) => {
-      const { name, title } = provider;
+      const { name, title, isDeprecated } = provider;
+      // Exclude deprecated providers - they can't be verified
+      if (isDeprecated) return providers;
       if (validPlatformIds.includes(name)) return [...providers, { name, title }];
       else return providers;
     }, []);

@@ -1,25 +1,27 @@
-import { CivicPassLookupPass, CivicPassLookupResponse, CivicPassType, Pass, SupportedChain } from "./types";
-import { BigNumber } from "@ethersproject/bignumber";
+import { CivicPassLookupPass, CivicPassLookupResponse, CivicPassType, Pass, SupportedChain } from "./types.js";
 import axios from "axios";
+import { handleProviderAxiosError } from "../../utils/handleProviderAxiosError.js";
 
 const CIVIC_URL = "https://api.civic.com/pass-lookup";
 
 const isError = (e: unknown): e is Error => e instanceof Error;
 export const errorToString = (e: unknown): string => (isError(e) ? e.message : JSON.stringify(e));
 
-export const latestExpiry = (passes: Pass[]): BigNumber =>
-  passes.reduce((max, pass) => (pass.expiry.gt(max) ? pass.expiry : max), BigNumber.from(0));
+export const latestExpiry = (passes: Pass[]): bigint =>
+  passes.reduce((max, pass) => (pass.expiry > max ? pass.expiry : max), BigInt(0));
 
-export const secondsFromNow = (expiry: BigNumber): number =>
-  expiry.sub(BigNumber.from(Math.floor(Date.now() / 1000))).toNumber();
+export const getNowAsBigNumberSeconds = () => BigInt(Math.floor(Date.now() / 1000));
+
+export const secondsFromNow = (expiry: bigint): number => Number(expiry - getNowAsBigNumberSeconds());
 
 const passLookupResponseToPass =
   (passType: CivicPassType) =>
   (pass: CivicPassLookupPass): Pass => ({
     type: passType,
     chain: pass.chain as SupportedChain,
-    expiry: BigNumber.from(pass.expiry),
+    expiry: BigInt(pass.expiry),
     identifier: pass.identifier,
+    state: pass.state,
   });
 
 const passTypesToNames = (passTypes: CivicPassType[]): string[] => passTypes.map((id) => CivicPassType[id]);
@@ -93,12 +95,25 @@ export const findAllPasses = async (
   includeTestnets = false,
   passTypes?: CivicPassType[]
 ): Promise<Pass[]> => {
-  const passTypesString = passTypes ? `&passTypes=${passTypesToNames(passTypes).join(",")}` : "";
-  const queryString = `${CIVIC_URL}/${userAddress}?includeTestnets=${includeTestnets.toString()}${passTypesString}`;
-  const response = await axios.get<CivicPassLookupResponse>(queryString).then((response) => response.data);
+  const queryString = getQueryString(passTypes, userAddress, includeTestnets);
+  const response = await requestPasses(queryString);
   return Object.entries(response).flatMap(([, passesForAddress]) =>
     Object.entries(passesForAddress.passes).flatMap(([passType, passes]) =>
       passes.flatMap(passLookupResponseToPass(CivicPassType[passType as keyof typeof CivicPassType]))
     )
   );
+};
+
+const getQueryString = (passTypes: CivicPassType[], userAddress: string, includeTestnets: boolean): string => {
+  const passTypesString = passTypes ? `&passTypes=${passTypesToNames(passTypes).join(",")}` : "";
+  return `${CIVIC_URL}/${userAddress}?includeExpired=true&includeTestnets=${includeTestnets.toString()}${passTypesString}`;
+};
+
+const requestPasses = async (queryString: string): Promise<CivicPassLookupResponse> => {
+  try {
+    const response = await axios.get<CivicPassLookupResponse>(queryString);
+    return response.data;
+  } catch (e) {
+    handleProviderAxiosError(e, "Civic");
+  }
 };

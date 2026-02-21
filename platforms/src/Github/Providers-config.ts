@@ -1,123 +1,68 @@
-import { PlatformSpec, PlatformGroupSpec, Provider } from "../types";
-import { GithubAccountCreationProvider } from "./Providers/githubAccountCreation";
-import { GithubContributionActivityProvider } from "./Providers/githubContributionActivity";
-import * as legacyProviders from "./Providers/legacy";
+import { MAX_CONTRIBUTION_DAYS } from "../utils/githubClient.js";
+import { PlatformSpec, PlatformGroupSpec, Provider } from "../types.js";
+import { GithubContributionActivityProvider } from "./Providers/githubContributionActivity.js";
 
 export const PlatformDetails: PlatformSpec = {
-  icon: "./assets/githubWhiteStampIcon.svg",
+  icon: "./assets/githubStampIcon.svg",
   platform: "Github",
-  name: "Github",
-  description: "Connect your existing Github account to verify.",
+  name: "GitHub",
+  description: "Verify your GitHub activity",
   connectMessage: "Connect Account",
+  website: "https://github.com",
+  timeToGet: "5-10 minutes",
+  price: "Free",
+  guide: [
+    {
+      type: "list",
+      title: "Stamp Requirements",
+      items: [
+        "Only Commits qualify for the Stamp. No other contributions or activities will qualify",
+        "We track Commit days rather than volume of commits. This means that if you make multiple commits on a single day, it will only count as one Commit day",
+        "Only commits in the past 3 years qualify",
+        "Commits made while the repo was hosted by another Git platform don't count. The repo must be hosted by GitHub at the time of the commit for it to qualify",
+        "Commits to repos that are currently public qualify, regardless of whether they were private at the time of the commit",
+        "Your privacy controls can be either set to public or private",
+      ],
+    },
+  ],
 };
 
 let providers: Provider[] = [];
 let ProviderConfig: PlatformGroupSpec[] = [];
 
-if (process.env.FF_NEW_GITHUB_STAMPS === "on" || process.env.NEXT_PUBLIC_FF_NEW_GITHUB_STAMPS === "on") {
-  ProviderConfig = [
-    {
-      platformGroup: "Account Creation",
-      providers: [
-        {
-          title: "Created at least 90 days ago",
-          name: "githubAccountCreationGte#90",
-        },
-        {
-          title: "Created at least 180 days ago",
-          name: "githubAccountCreationGte#180",
-        },
-        {
-          title: "Created at least 365 days ago",
-          name: "githubAccountCreationGte#365",
-        },
-      ],
-    },
-    {
-      platformGroup: "Contribution Activity",
-      providers: [
-        {
-          title: "Contributions on at least 30 distinct days",
-          name: "githubContributionActivityGte#30",
-        },
-        {
-          title: "Contributions on at least 60 distinct days",
-          name: "githubContributionActivityGte#60",
-        },
-        {
-          title: "Contributions on at least 120 distinct days",
-          name: "githubContributionActivityGte#120",
-        },
-      ],
-    },
-  ];
+ProviderConfig = [
+  {
+    platformGroup: "Developer Activity",
+    providers: [
+      {
+        title: "Regular Contributor",
+        description: "Demonstrate consistent coding activity with commits on at least 30 different days",
+        name: "githubContributionActivityGte#30",
+      },
+      {
+        title: "Active Developer",
+        description: "Show sustained coding engagement with commits on at least 60 different days",
+        name: "githubContributionActivityGte#60",
+      },
+      {
+        title: "Dedicated Coder",
+        description: "Reflect long-term coding commitment with commits on at least 120 different days",
+        name: "githubContributionActivityGte#120",
+      },
+    ],
+  },
+];
 
-  providers = [
-    new GithubAccountCreationProvider({
-      threshold: "90",
-    }),
-    new GithubAccountCreationProvider({
-      threshold: "180",
-    }),
-    new GithubAccountCreationProvider({
-      threshold: "365",
-    }),
-    new GithubContributionActivityProvider({
-      threshold: "30",
-    }),
-    new GithubContributionActivityProvider({
-      threshold: "60",
-    }),
-    new GithubContributionActivityProvider({
-      threshold: "120",
-    }),
-  ];
-} else {
-  ProviderConfig = [
-    {
-      platformGroup: "Account Name",
-      providers: [{ title: "Encrypted", name: "Github" }],
-    },
-    {
-      platformGroup: "Repositories",
-      providers: [
-        {
-          title: "Five or more Github repos",
-          name: "FiveOrMoreGithubRepos",
-        },
-        {
-          title: "At least 1 Github repo forked by another user",
-          name: "ForkedGithubRepoProvider",
-        },
-        {
-          title: "At least 1 Github repo starred by another user",
-          name: "StarredGithubRepoProvider",
-        },
-      ],
-    },
-    {
-      platformGroup: "Followers",
-      providers: [
-        {
-          title: "Ten or more Github followers",
-          name: "TenOrMoreGithubFollowers",
-        },
-        {
-          title: "Fifty or more Github followers",
-          name: "FiftyOrMoreGithubFollowers",
-        },
-      ],
-    },
-  ];
-
-  providers = [
-    new legacyProviders.GithubProvider(),
-    new legacyProviders.FiveOrMoreGithubRepos(),
-    new legacyProviders.TenOrMoreGithubFollowers(),
-    new legacyProviders.FiftyOrMoreGithubFollowers(),
-    new legacyProviders.ForkedGithubRepoProvider(),
-    new legacyProviders.StarredGithubRepoProvider(),
-  ];
-}
+providers = [
+  new GithubContributionActivityProvider({
+    threshold: "30",
+  }),
+  new GithubContributionActivityProvider({
+    threshold: "60",
+  }),
+  new GithubContributionActivityProvider({
+    threshold: `${MAX_CONTRIBUTION_DAYS}`,
+  }),
+];
 
 export { providers, ProviderConfig };

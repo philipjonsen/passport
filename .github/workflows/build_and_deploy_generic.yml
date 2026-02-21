@@ -1,0 +1,276 @@
+name: Library - Build and Deploy API - Generic
+
+on:
+  workflow_call:
+    inputs:
+      refspec:
+        description: "The commit SHA"
+        type: string
+        required: True
+      docker_tag:
+        description: "Docker tag"
+        type: string
+        required: True
+      environment:
+        description: "Environment to deploy to"
+        type: string
+        required: true
+
+jobs:
+  docker_iam:
+    name: Build and push IAM docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Load secret
+        id: op-load-secret
+        uses: 1password/load-secrets-action@v1
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          CLOUDFLARE_API_TOKEN: op://DeployerVault/github-aws-${{ inputs.environment }}/ci/CLOUDFLARE_API_TOKEN
+          AWS_ACCESS_KEY_ID: op://DeployerVault/github-aws-${{ inputs.environment }}/ci/AWS_ACCESS_KEY_ID
+          AWS_SECRET_ACCESS_KEY: op://DeployerVault/github-aws-${{ inputs.environment }}/ci/AWS_SECRET_ACCESS_KEY
+
+      - name: Install 1Password CLI
+        uses: 1password/install-cli-action@v1
+
+      - name: Configure 1Password Service Account
+        uses: 1password/load-secrets-action/configure@v1
+        with:
+          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+      - name: Set AWS_SESSION_TOKEN if needed
+        id: set-aws-session-token
+        if: inputs.environment == 'production'
+        uses: 1password/load-secrets-action@v1
+        with:
+          export-env: true
+        env:
+          AWS_SESSION_TOKEN: op://DeployerVault/github-aws-${{ inputs.environment }}/ci/AWS_SESSION_TOKEN
+
+      - id: build_and_push_docker_iam_image
+        uses: passportxyz/gh-workflows/.github/actions/build_and_push@v3
+        with:
+          refspec: ${{ inputs.refspec }}
+          docker_tag: ${{ inputs.docker_tag }}
+          ecr_repository_name: passport
+          aws_region: us-west-2
+          aws_access_key_id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws_session_token: ${{ env.AWS_SESSION_TOKEN }}
+          dockerfile_name: iam/Dockerfile
+          build_dir: ./
+
+  docker_embed:
+    name: Build and push embed docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Load secret
+        id: op-load-secret
+        uses: 1password/load-secrets-action@v1
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          CLOUDFLARE_API_TOKEN: op://DeployerVault/github-aws-${{ inputs.environment }}/ci/CLOUDFLARE_API_TOKEN
+          AWS_ACCESS_KEY_ID: op://DeployerVault/github-aws-${{ inputs.environment }}/ci/AWS_ACCESS_KEY_ID
+          AWS_SECRET_ACCESS_KEY: op://DeployerVault/github-aws-${{ inputs.environment }}/ci/AWS_SECRET_ACCESS_KEY
+
+      - name: Install 1Password CLI
+        uses: 1password/install-cli-action@v1
+
+      - name: Configure 1Password Service Account
+        uses: 1password/load-secrets-action/configure@v1
+        with:
+          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+      - name: Set AWS_SESSION_TOKEN if needed
+        id: set-aws-session-token
+        if: inputs.environment == 'production'
+        uses: 1password/load-secrets-action@v1
+        with:
+          export-env: true
+        env:
+          AWS_SESSION_TOKEN: op://DeployerVault/github-aws-${{ inputs.environment }}/ci/AWS_SESSION_TOKEN
+
+      - id: build_and_push_docker_embed_image
+        uses: passportxyz/gh-workflows/.github/actions/build_and_push@v3
+        with:
+          refspec: ${{ inputs.refspec }}
+          docker_tag: ${{ inputs.docker_tag }}
+          ecr_repository_name: passport-embed
+          aws_region: us-west-2
+          aws_access_key_id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws_session_token: ${{ env.AWS_SESSION_TOKEN }}
+          dockerfile_name: embed/Dockerfile
+          build_dir: ./
+
+  deploy_preview:
+    name: Preview - Deploying AWS Infra
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.refspec }}
+          fetch-depth: 0
+      - name: Install 1Password CLI
+        uses: 1password/install-cli-action@v1
+      - name: Configure 1Password Service Account
+        uses: 1password/load-secrets-action/configure@v1
+        with:
+          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+      - name: Load secret
+        id: op-load-secret
+        uses: 1password/load-secrets-action@v1
+        with:
+          export-env: true
+        env:
+          CLOUDFLARE_API_TOKEN: op://DeployerVault/github-aws-${{ inputs.environment }}/ci/CLOUDFLARE_API_TOKEN
+          AWS_ACCESS_KEY_ID: op://DeployerVault/github-aws-${{ inputs.environment }}/ci/AWS_ACCESS_KEY_ID
+          AWS_SECRET_ACCESS_KEY: op://DeployerVault/github-aws-${{ inputs.environment }}/ci/AWS_SECRET_ACCESS_KEY
+          PULUMI_ACCESS_TOKEN: op://DeployerVault/github-aws-${{ inputs.environment }}/ci/PULUMI_ACCESS_TOKEN
+
+      - name: Set AWS_SESSION_TOKEN if needed
+        id: set-aws-session-token
+        if: inputs.environment == 'production'
+        uses: 1password/load-secrets-action@v1
+        with:
+          export-env: true
+        env:
+          AWS_SESSION_TOKEN: op://DeployerVault/github-aws-${{ inputs.environment }}/ci/AWS_SESSION_TOKEN
+
+      - name: Build Sweeper Service
+        run: |
+          cd infra/scripts/verifier_sweep
+          yarn install --frozen-lockfile
+          yarn build
+      - name: Build Auto Credits Service
+        run: |
+          cd infra/scripts/auto_credits
+          npm install
+          npm run build
+      - name: Prepare to Deploy to AWS
+        uses: passportxyz/gh-workflows/.github/actions/prepare_deploy_to_aws@v3
+      - name: Deploy Preview
+        # uses: ./.github/actions/deploy_to_aws
+        uses: passportxyz/gh-workflows/.github/actions/deploy_to_aws@v3
+        with:
+          docker_tag: ${{ inputs.docker_tag }}
+          stack_name: passportxyz/passport/${{ inputs.environment }}
+          aws_region: us-west-2
+          pulumi_command: preview
+          pulumi_diff: true
+          AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          PULUMI_ACCESS_TOKEN: ${{ env.PULUMI_ACCESS_TOKEN }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+
+  build_app:
+    name: Build App
+    uses: ./.github/workflows/sync_to_s3_generic_build_app.yml
+    secrets: inherit
+    with:
+      refspec: ${{ inputs.refspec }}
+      environment: ${{ inputs.environment }}
+
+  build_embed:
+    name: Build Embed
+    uses: ./.github/workflows/sync_to_s3_generic_build_embed.yml
+    secrets: inherit
+    with:
+      refspec: ${{ inputs.refspec }}
+      environment: ${{ inputs.environment }}
+
+  deploy_confirm:
+    name: Review Approval Pending
+    needs: [docker_iam, docker_embed, deploy_preview, build_app, build_embed]
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Approve Release to Review (check pulumi preview)
+        run: |
+          echo "Ref" ${{ inputs.refspec }}
+
+  deploy_backends:
+    name: Deploying AWS Infra
+    needs: [docker_iam, docker_embed, deploy_preview, deploy_confirm]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.refspec }}
+          fetch-depth: 0
+      - name: Install 1Password CLI
+        uses: 1password/install-cli-action@v1
+      - name: Configure 1Password Service Account
+        uses: 1password/load-secrets-action/configure@v1
+        with:
+          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+      - name: Load secret
+        id: op-load-secret
+        uses: 1password/load-secrets-action@v1
+        with:
+          export-env: true
+        env:
+          CLOUDFLARE_API_TOKEN: op://DeployerVault/github-aws-${{ inputs.environment }}/ci/CLOUDFLARE_API_TOKEN
+          AWS_ACCESS_KEY_ID: op://DeployerVault/github-aws-${{ inputs.environment }}/ci/AWS_ACCESS_KEY_ID
+          AWS_SECRET_ACCESS_KEY: op://DeployerVault/github-aws-${{ inputs.environment }}/ci/AWS_SECRET_ACCESS_KEY
+          PULUMI_ACCESS_TOKEN: op://DeployerVault/github-aws-${{ inputs.environment }}/ci/PULUMI_ACCESS_TOKEN
+
+      - name: Set AWS_SESSION_TOKEN if needed
+        id: set-aws-session-token
+        if: inputs.environment == 'production'
+        uses: 1password/load-secrets-action@v1
+        with:
+          export-env: true
+        env:
+          AWS_SESSION_TOKEN: op://DeployerVault/github-aws-${{ inputs.environment }}/ci/AWS_SESSION_TOKEN
+
+      - name: Build Sweeper Service
+        run: |
+          cd infra/scripts/verifier_sweep
+          yarn install --frozen-lockfile
+          yarn build
+      - name: Build Auto Credits Service
+        run: |
+          cd infra/scripts/auto_credits
+          npm install
+          npm run build
+      - name: Prepare to Deploy to AWS
+        uses: passportxyz/gh-workflows/.github/actions/prepare_deploy_to_aws@v3
+      - name: Deploy to AWS
+        uses: passportxyz/gh-workflows/.github/actions/deploy_to_aws@v3
+        with:
+          docker_tag: ${{ inputs.docker_tag }}
+          stack_name: passportxyz/passport/${{ inputs.environment }}
+          pulumi_command: up
+          aws_region: us-west-2
+          AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          PULUMI_ACCESS_TOKEN: ${{ env.PULUMI_ACCESS_TOKEN }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+
+  push_app:
+    name: Push App to S3
+    needs: [deploy_confirm]
+    uses: ./.github/workflows/sync_to_s3_generic_push_app.yml
+    secrets: inherit
+    with:
+      refspec: ${{ inputs.refspec }}
+      environment: ${{ inputs.environment }}
+
+  push_embed:
+    name: Push Embed to S3
+    needs: [deploy_confirm]
+    uses: ./.github/workflows/sync_to_s3_generic_push_embed.yml
+    secrets: inherit
+    with:
+      refspec: ${{ inputs.refspec }}
+      environment: ${{ inputs.environment }}
+    

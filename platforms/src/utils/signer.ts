@@ -2,37 +2,23 @@
 import type { RequestPayload } from "@gitcoin/passport-types";
 
 // ----- Verify signed message with ethers
-import { JsonRpcProvider, JsonRpcSigner, StaticJsonRpcProvider } from "@ethersproject/providers";
+import { JsonRpcProvider, getAddress as toChecksummedAddress } from "ethers";
 
-// ----- Credential verification
-import * as DIDKit from "@spruceid/didkit-wasm";
-import { verifyCredential } from "@gitcoin/passport-identity/dist/commonjs/src/credentials";
-
-// ----- Verify signed message with ethers
-import { utils } from "ethers";
-
-// set the network rpc url based on env
-const RPC_URL = process.env.RPC_URL;
-
-export const getRPCProvider = (payload: RequestPayload): StaticJsonRpcProvider => {
-  const provider: StaticJsonRpcProvider = new StaticJsonRpcProvider(RPC_URL);
+export const getRPCProvider = (rpc: string): JsonRpcProvider => {
+  const provider: JsonRpcProvider = new JsonRpcProvider(rpc);
 
   return provider;
 };
 
-// get the address associated with the signer in the payload
-export const getAddress = async ({ address, signer, issuer }: RequestPayload): Promise<string> => {
-  // if signer proof is provided, check validity and return associated address instead of controller
-  if (signer && signer.challenge && signer.signature) {
-    // test the provided credential has not been tampered with
-    const verified = await verifyCredential(DIDKit, signer.challenge);
-    // check the credential was issued by us for this user...
-    if (verified && issuer === signer.challenge.issuer && address === signer.challenge.credentialSubject.address) {
-      // which ever wallet signed this message is the wallet we want to use in provider verifications
-      return utils.getAddress(utils.verifyMessage(signer.challenge.credentialSubject.challenge, signer.signature));
-    }
-  }
-
+// Get the address from the payload
+// This function does not perform any validation of the challenge, we expect this to
+// have been performed already before this function is called
+export const getAddress = async ({ address }: RequestPayload): Promise<string> => {
   // proof was missing/invalid return controller address from the payload
-  return address;
+  return Promise.resolve(address);
+};
+
+export const getChecksummedAddress = async ({ address }: RequestPayload): Promise<string> => {
+  // proof was missing/invalid return controller address from the payload
+  return Promise.resolve(toChecksummedAddress(address));
 };

@@ -1,13 +1,22 @@
-import React, { useState, Ref } from "react";
-import { Popover } from "@headlessui/react";
-import { InformationCircleIcon } from "@heroicons/react/24/solid";
-import { usePopper } from "react-popper";
+import React, { useState } from "react";
+import { autoUpdate, flip, offset, shift, useFloating } from "@floating-ui/react";
+import { twMerge } from "tailwind-merge";
 
 const TextAlignedInfoIcon = ({ className }: { className?: string }): JSX.Element => (
-  <InformationCircleIcon className={`relative top-[.125em] h-[1em] w-[1em] text-color-2 ${className}`} />
+  <div className={`relative ${className}`}>
+    <svg width="25" height="24" viewBox="0 0 25 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M12.5 16V12M12.5 8H12.51M22.5 12C22.5 17.5228 18.0228 22 12.5 22C6.97715 22 2.5 17.5228 2.5 12C2.5 6.47715 6.97715 2 12.5 2C18.0228 2 22.5 6.47715 22.5 12Z"
+        stroke="#737373"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  </div>
 );
 
-const TooltipPopover = ({
+const Tooltip = ({
   children,
   className,
   panelClassName,
@@ -18,38 +27,41 @@ const TooltipPopover = ({
   panelClassName?: string;
   iconClassName?: string;
 }): JSX.Element => {
-  const [referenceElement, setReferenceElement] = useState(null);
-  const [popperElement, setPopperElement] = useState(null);
-
-  const { styles, attributes } = usePopper(referenceElement, popperElement, {
-    modifiers: [
-      {
-        name: "preventOverflow",
-        options: {
-          padding: 24,
-        },
-      },
-    ],
+  const { refs, floatingStyles } = useFloating({
+    placement: "bottom-start",
+    middleware: [offset(6), flip(), shift({ padding: 24 })],
+    whileElementsMounted: autoUpdate,
   });
 
-  return (
-    <Popover className={`group cursor-pointer px-2 ${className}`}>
-      {/* ref type stuff is a workaround for the weird way popper needs references */}
-      <Popover.Button as="div" ref={setReferenceElement as unknown as Ref<HTMLButtonElement>}>
-        <TextAlignedInfoIcon className={iconClassName} />
-      </Popover.Button>
+  const [isOpen, setIsOpen] = useState(false);
 
-      <Popover.Panel
-        ref={setPopperElement as unknown as Ref<HTMLDivElement>}
-        className={`invisible z-10 w-4/5 max-w-screen-md rounded-md border border-foreground-6 bg-background text-sm text-color-1 group-hover:visible ${panelClassName}`}
-        style={styles.popper}
-        {...attributes.popper}
-        static
+  return (
+    <>
+      <button
+        ref={refs.setReference}
+        className={twMerge("w-fit", className)}
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
+        onFocus={() => setIsOpen(true)}
+        onBlur={() => setIsOpen(false)}
       >
-        <div className="px-4 py-2">{children}</div>
-      </Popover.Panel>
-    </Popover>
+        <TextAlignedInfoIcon className={iconClassName} />
+      </button>
+
+      {isOpen && (
+        <div
+          ref={refs.setFloating}
+          className={twMerge(
+            "z-10 w-4/5 px-4 py-2 max-w-screen-md rounded-md border border-foreground-6 bg-background text-sm",
+            panelClassName
+          )}
+          style={floatingStyles}
+        >
+          {children}
+        </div>
+      )}
+    </>
   );
 };
 
-export default TooltipPopover;
+export default Tooltip;

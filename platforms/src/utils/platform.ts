@@ -1,6 +1,12 @@
-import { AppContext, ProviderPayload } from "../types";
+import { AppContext, ProviderPayload } from "../types.js";
 import { PROVIDER_ID } from "@gitcoin/passport-types";
-import { Platform as PlatformType, PlatformBanner } from "../types";
+import { Platform as PlatformType, PlatformBanner } from "../types.js";
+
+export class PlatformPreCheckError extends Error {
+  constructor(message: string) {
+    super(message);
+  }
+}
 
 export type PlatformOptions = {
   platformId: string;
@@ -17,7 +23,6 @@ export class Platform implements PlatformType {
   redirectUri?: string;
   state?: string;
   banner?: PlatformBanner;
-  isEVM?: boolean;
 
   async getProviderPayload(appContext: AppContext): Promise<ProviderPayload> {
     const authUrl: string = await this.getOAuthUrl(appContext.state, appContext.selectedProviders);

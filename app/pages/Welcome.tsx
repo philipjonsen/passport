@@ -1,183 +1,93 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 // --- React Methods
-import React, { useContext, useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-
-// --- Types
-import { Status, Step } from "../components/Progress";
-import { PLATFORM_ID } from "@gitcoin/passport-types";
-import { PlatformProps } from "../components/GenericPlatform";
-
-// --Components
-import MinimalHeader from "../components/MinimalHeader";
-import { PAGE_PADDING } from "../components/PageWidthGrid";
-import HeaderContentFooterGrid from "../components/HeaderContentFooterGrid";
-import PageRoot from "../components/PageRoot";
-import { WelcomeBack } from "../components/WelcomeBack";
-import { RefreshMyStampsModal } from "../components/RefreshMyStampsModal";
-
-// --Chakra UI Elements
-import { useDisclosure } from "@chakra-ui/react";
-
-// --- Contexts
-import { CeramicContext, IsLoadingPassportState } from "../context/ceramicContext";
-import { UserContext } from "../context/userContext";
-import { InitialWelcome } from "../components/InitialWelcome";
-import LoadingScreen from "../components/LoadingScreen";
+import React, { useState, useEffect } from "react";
 
 // --- Utils
-import { fetchPossibleEVMStamps, ValidatedPlatform } from "../signer/utils";
-import BodyWrapper from "../components/BodyWrapper";
-
-const MIN_DELAY = 50;
-const MAX_DELAY = 800;
-const getStepDelay = () => Math.floor(Math.random() * (MAX_DELAY - MIN_DELAY + 1) + MIN_DELAY);
+import { useDatastoreConnectionContext } from "../context/datastoreConnectionContext";
+import { useCustomization, useNavigateToPage } from "../hooks/useCustomization";
+import { useAccount } from "wagmi";
+import { InitialScreenWelcome } from "../components/InitialScreenLayout";
+import { Button } from "../components/Button";
+import Checkbox from "../components/Checkbox";
 
 export default function Welcome() {
-  const { isOpen, onOpen, onClose } = useDisclosure();
-  const { passport, allPlatforms, isLoadingPassport } = useContext(CeramicContext);
-  const { wallet, address } = useContext(UserContext);
-  const [searchParams] = useSearchParams();
-  const dashboardCustomizationKey = searchParams.get("dashboard");
+  const [skipNextTime, setSkipNextTime] = useState(false);
 
-  const navigate = useNavigate();
+  const { dbAccessTokenStatus } = useDatastoreConnectionContext();
+  const { address } = useAccount();
+  const { scorer, hideHumnBranding } = useCustomization();
+  const threshold = scorer?.threshold;
+  const navigateToPage = useNavigateToPage();
 
   // Route user to home page when wallet is disconnected
   useEffect(() => {
-    if (!wallet) {
-      navigate(`/${dashboardCustomizationKey ? `?dashboard=${dashboardCustomizationKey}` : ""}`);
+    if (!address || dbAccessTokenStatus !== "connected") {
+      navigateToPage("home");
     }
-  }, [wallet]);
-
-  const initialSteps = [
-    {
-      name: "Scanning",
-      status: Status.SUCCESS,
-    },
-    {
-      name: "Double Checking",
-      status: Status.NOT_STARTED,
-    },
-    {
-      name: "Validating",
-      status: Status.NOT_STARTED,
-    },
-    {
-      name: "Brewing Coffee",
-      status: Status.NOT_STARTED,
-    },
-    {
-      name: "Almost there",
-      status: Status.NOT_STARTED,
-    },
-    {
-      name: "Ready for review",
-      status: Status.NOT_STARTED,
-    },
-  ];
-  const [validPlatforms, setValidPlatforms] = useState<ValidatedPlatform[]>();
-  const [currentSteps, setCurrentSteps] = useState<Step[]>(initialSteps);
-
-  const resetStampsAndProgressState = () => {
-    setValidPlatforms([]);
-    setCurrentSteps(initialSteps);
-  };
-
-  const updateSteps = (activeStepIndex: number, error?: boolean) => {
-    // if error mark ActiveStep as ERROR, and previous steps as SUCCESS
-    const steps = [...currentSteps];
-    if (error) {
-      steps.slice(0, activeStepIndex).forEach((step) => (step.status = Status.SUCCESS));
-      steps[activeStepIndex - 1].status = Status.ERROR;
-      setCurrentSteps(steps);
-      return;
-    }
-    // if there is no error mark previous steps as SUCCESS, mark step after activeStepIndex as IS_STARTED
-    steps.slice(0, activeStepIndex).forEach((step) => (step.status = Status.SUCCESS));
-    if (steps[activeStepIndex]) {
-      steps[activeStepIndex].status = Status.IN_PROGRESS;
-    }
-
-    setCurrentSteps(steps);
-  };
-
-  const fetchValidPlatforms = async (
-    address: string,
-    allPlatforms: Map<PLATFORM_ID, PlatformProps>
-  ): Promise<ValidatedPlatform[]> => {
-    try {
-      let step = 0;
-      const incrementStep = () => {
-        if (step < 4) {
-          updateSteps(++step);
-          setTimeout(incrementStep, getStepDelay());
-        }
-      };
-      incrementStep();
-
-      const validPlatforms = await fetchPossibleEVMStamps(address, allPlatforms, passport);
-
-      step = 5;
-      updateSteps(6);
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      return validPlatforms;
-    } catch (error) {
-      console.log(error);
-      throw new Error("Error: ");
-    }
-  };
-
-  const handleFetchPossibleEVMStamps = async (addr: string, allPlats: Map<PLATFORM_ID, PlatformProps>) => {
-    try {
-      const platforms = await fetchValidPlatforms(addr, allPlats);
-      setValidPlatforms(platforms);
-    } catch (error) {
-      console.log(error);
-      throw new Error();
-    }
-  };
+  }, [address]);
 
   return (
-    <PageRoot className="text-color-2">
-      <HeaderContentFooterGrid>
-        <div className={`${PAGE_PADDING} bg-background`}>
-          <MinimalHeader className={`border-b border-foreground-6`} />
-        </div>
-        <BodyWrapper className="flex justify-center">
-          {isLoadingPassport === IsLoadingPassportState.Idle ||
-          isLoadingPassport === IsLoadingPassportState.FailedToConnect ? (
-            passport && passport.stamps.length > 0 ? (
-              <WelcomeBack
-                handleFetchPossibleEVMStamps={handleFetchPossibleEVMStamps}
-                onOpen={onOpen}
-                resetStampsAndProgressState={resetStampsAndProgressState}
-                dashboardCustomizationKey={dashboardCustomizationKey}
-              />
-            ) : (
-              <InitialWelcome
-                onBoardFinished={async () => {
-                  if (address) {
-                    handleFetchPossibleEVMStamps(address, allPlatforms);
-                    onOpen();
-                  }
-                }}
-                dashboardCustomizationKey={dashboardCustomizationKey}
-              />
-            )
-          ) : (
-            <LoadingScreen />
-          )}
-        </BodyWrapper>
-      </HeaderContentFooterGrid>
-      <RefreshMyStampsModal
-        steps={currentSteps}
-        isOpen={isOpen}
-        onClose={onClose}
-        validPlatforms={validPlatforms}
-        resetStampsAndProgressState={resetStampsAndProgressState}
-        dashboardCustomizationKey={dashboardCustomizationKey}
-      />
-    </PageRoot>
+    <InitialScreenWelcome imgUrl="/assets/hmnOnboardImage.svg">
+      <div className="mb-4 text-2xl leading-none md:text-6xl font-bold font-alt">Understanding Your Points</div>
+      <div className="text-lg">
+        <p>
+          When you complete Stamps, you earn both <span className="font-bold">Unique Humanity Points</span> and{" "}
+          <span className="font-bold">HUMN Points</span> simultaneously.{" "}
+        </p>
+        <p className="pt-4">
+          <span className="font-bold">Unique Humanity Points</span> prove you&apos;re human and unlock access to web3
+          programs. You need a score of {!!threshold ? threshold : "20+"} to get verified and start accessing web3
+          opportunities.
+        </p>
+        {!hideHumnBranding && (
+          <>
+            <p className="pt-4">
+              <span className="font-bold">HUMN Points</span> are your rewards balance. These accumulate in your account
+              across the human.tech tools and will unlock exclusive benefits and rewards in upcoming programs.
+            </p>
+            <p className="pt-4">
+              <span className="font-bold">To earn HUMN Points,</span> you must build up a Unique Humanity score of 20+.
+            </p>
+            <div className="pt-6 underline text-color-9">
+              <a href="https://passport.human.tech/blog/humn-onchain-sumr-season-1-is-live" target="_blank">
+                Learn more about HUMN Points
+              </a>
+            </div>
+          </>
+        )}
+      </div>
+
+      <Button className="px-16" onClick={() => navigateToPage("dashboard")}>
+        Next{" "}
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path
+            d="M5 12H19M19 12L12 5M19 12L12 19"
+            stroke="white"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </Button>
+      <div className="mt-8 flex justify-center md:justify-start text-color-9">
+        <Checkbox
+          id="skip-next-time"
+          checked={skipNextTime}
+          onChange={(checked) => {
+            if (checked) {
+              const now = Math.floor(Date.now() / 1000);
+              localStorage.setItem("onboardTS", now.toString());
+              setSkipNextTime(true);
+            } else {
+              localStorage.removeItem("onboardTS");
+              setSkipNextTime(false);
+            }
+          }}
+        />
+        <label htmlFor="skip-next-time" className="pl-2 text-sm">
+          Skip this screen next time
+        </label>
+      </div>
+    </InitialScreenWelcome>
   );
 }

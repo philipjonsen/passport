@@ -1,11 +1,11 @@
 // TODO remove once tsconfig as unified across all packages
-/* eslint-disable @typescript-eslint/unbound-method */
+
 import { RequestPayload } from "@gitcoin/passport-types";
 
 // ----- Libs
 import axios from "axios";
-import { ProviderExternalVerificationError } from "../../types";
-import { ZkSyncEraProvider } from "../Providers/zkSyncEra";
+import { ProviderExternalVerificationError } from "../../types.js";
+import { ZkSyncEraProvider } from "../Providers/zkSyncEra.js";
 
 jest.mock("axios");
 
@@ -112,7 +112,7 @@ describe("Verification succeeds", function () {
 
     // Check the request to get the transactions
     expect(axios.get).toHaveBeenCalledTimes(1);
-    expect(mockedAxios.get).toBeCalledWith(
+    expect(mockedAxios.get).toHaveBeenCalledWith(
       `${process.env.ZKSYNC_ERA_MAINNET_ENDPOINT}/transactions?address=${MOCK_ADDRESS_LOWER}&limit=100&direction=older`
     );
 
@@ -142,7 +142,7 @@ describe("Verification fails", function () {
 
     // Check the request to get the transactions
     expect(axios.get).toHaveBeenCalledTimes(1);
-    expect(mockedAxios.get).toBeCalledWith(
+    expect(mockedAxios.get).toHaveBeenCalledWith(
       `${process.env.ZKSYNC_ERA_MAINNET_ENDPOINT}/transactions?address=${MOCK_ADDRESS_LOWER}&limit=100&direction=older`
     );
 
@@ -167,7 +167,7 @@ describe("Verification fails", function () {
 
     // Check the request to get the transactions
     expect(axios.get).toHaveBeenCalledTimes(1);
-    expect(mockedAxios.get).toBeCalledWith(
+    expect(mockedAxios.get).toHaveBeenCalledWith(
       `${process.env.ZKSYNC_ERA_MAINNET_ENDPOINT}/transactions?address=${MOCK_ADDRESS_LOWER}&limit=100&direction=older`
     );
 
@@ -193,7 +193,7 @@ describe("Verification fails", function () {
 
     // Check the request to get the transactions
     expect(axios.get).toHaveBeenCalledTimes(1);
-    expect(mockedAxios.get).toBeCalledWith(
+    expect(mockedAxios.get).toHaveBeenCalledWith(
       `${process.env.ZKSYNC_ERA_MAINNET_ENDPOINT}/transactions?address=${MOCK_ADDRESS_LOWER}&limit=100&direction=older`
     );
 
@@ -224,7 +224,7 @@ describe("Verification fails", function () {
 
     // Check the request to get the transactions
     expect(axios.get).toHaveBeenCalledTimes(1);
-    expect(mockedAxios.get).toBeCalledWith(
+    expect(mockedAxios.get).toHaveBeenCalledWith(
       `${process.env.ZKSYNC_ERA_MAINNET_ENDPOINT}/transactions?address=${MOCK_ADDRESS_LOWER}&limit=100&direction=older`
     );
   });

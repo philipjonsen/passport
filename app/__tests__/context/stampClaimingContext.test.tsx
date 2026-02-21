@@ -1,47 +1,53 @@
+import { vi, describe, it, expect } from "vitest";
 import { render, waitFor, screen, fireEvent } from "@testing-library/react";
 import { useContext } from "react";
-import {
-  makeTestCeramicContext,
-  makeTestClaimingContext,
-  makeTestUserContext,
-} from "../../__test-fixtures__/contextTestHelpers";
+import { makeTestCeramicContext, renderWithContext } from "../../__test-fixtures__/contextTestHelpers";
 
-import { UserContext } from "../../context/userContext";
-import { CeramicContext, platforms } from "../../context/ceramicContext";
+import { CeramicContext } from "../../context/ceramicContext";
 import { StampClaimingContext, StampClaimingContextProvider } from "../../context/stampClaimingContext";
-import { fetchVerifiableCredential } from "@gitcoin/passport-identity/dist/commonjs/src/credentials";
+import { fetchVerifiableCredential } from "../../utils/credentials";
 
-import { PLATFORM_ID } from "@gitcoin/passport-types";
+import { PLATFORM_ID, ValidResponseBody } from "@gitcoin/passport-types";
 import { PlatformProps } from "../../components/GenericPlatform";
-import { AppContext, PlatformClass, ProviderPayload } from "@gitcoin/passport-platforms";
+import { AppContext, PlatformClass } from "@gitcoin/passport-platforms";
+import { DatastoreConnectionContext, DbAuthTokenStatus } from "../../context/datastoreConnectionContext";
 
-jest.mock("../../utils/helpers", () => ({
-  generateUID: jest.fn((length: number) => "some random string"),
+const mockAddress = "0x1234567890123456789012345678901234567890";
+
+// Mock wagmi hooks
+vi.mock("wagmi", async (importOriginal) => ({
+  ...(await importOriginal()),
+  useAccount: () => ({
+    address: mockAddress,
+    isConnected: true,
+  }),
 }));
 
-jest.mock("@gitcoin/passport-identity/dist/commonjs/src/credentials", () => ({
-  fetchVerifiableCredential: jest.fn(),
+vi.mock("../../utils/helpers", () => ({
+  generateUID: vi.fn((length: number) => "some random string"),
 }));
 
-jest.mock("../../utils/onboard.ts");
+vi.mock("../../utils/credentials", () => ({
+  fetchVerifiableCredential: vi.fn(),
+}));
 
-jest.mock("../../context/ceramicContext", () => {
-  const originalModule = jest.requireActual("../../context/ceramicContext");
+vi.mock("../../config/platformMap", async (importActual) => {
+  const originalModule = (await importActual()) as any;
   let newPlatforms = new Map<PLATFORM_ID, PlatformProps>();
 
-  originalModule.platforms.forEach((value: PlatformProps, key: PLATFORM_ID) => {
+  originalModule.defaultPlatformMap.forEach((value: PlatformProps, key: PLATFORM_ID) => {
     let platform: PlatformClass = {
       ...value.platform,
-      getProviderPayload: jest.fn(async (appContext: AppContext) => {
+      getProviderPayload: vi.fn(async (appContext: AppContext) => {
         return {};
       }),
-      getOAuthUrl: jest.fn(async (state, providers) => {
+      getOAuthUrl: vi.fn(async (state, providers) => {
         return "";
       }),
     };
     let newValue: PlatformProps = { ...value };
 
-    platform.getProviderPayload = jest.fn(async (appContext: AppContext) => {
+    platform.getProviderPayload = vi.fn(async (appContext: AppContext) => {
       return {};
     });
 
@@ -52,9 +58,12 @@ jest.mock("../../context/ceramicContext", () => {
   return {
     __esModule: true,
     ...originalModule,
-    platforms: newPlatforms,
+    defaultPlatformMap: newPlatforms,
   };
 });
+
+const handleClaimStep = vi.fn();
+const indicateError = vi.fn();
 
 const TestingComponent = () => {
   const { claimCredentials } = useContext(StampClaimingContext);
@@ -64,14 +73,14 @@ const TestingComponent = () => {
       <button
         data-testid="claim-button"
         onClick={() => {
-          claimCredentials([
+          claimCredentials(handleClaimStep, indicateError, [
             {
               platformId: "Google",
               selectedProviders: ["Google"],
             },
             {
               platformId: "Gitcoin",
-              selectedProviders: ["GitcoinContributorStatistics#numGrantsContributeToGte#1"],
+              selectedProviders: ["GitcoinContributorStatistics#totalContributionAmountGte#10"],
             },
           ]);
         }}
@@ -90,14 +99,14 @@ const TestingComponentWithEvmStamp = () => {
       <button
         data-testid="claim-button"
         onClick={() => {
-          claimCredentials([
+          claimCredentials(handleClaimStep, indicateError, [
             {
               platformId: "Google",
               selectedProviders: ["Google"],
             },
             {
               platformId: "Gitcoin",
-              selectedProviders: ["GitcoinContributorStatistics#numGrantsContributeToGte#1"],
+              selectedProviders: ["GitcoinContributorStatistics#totalContributionAmountGte#10"],
             },
             {
               platformId: "EVMBulkVerify",
@@ -120,41 +129,57 @@ const mockCeramicContext = makeTestCeramicContext({
   },
 });
 
-const mockStampClaimingContext = makeTestClaimingContext({});
-
-const mockTestUserContext = makeTestUserContext({});
+const testCeramicContext = makeTestCeramicContext();
 
 describe("<StampClaimingContext>", () => {
   const renderTestComponent = () =>
-    render(
-      <UserContext.Provider value={mockTestUserContext}>
+    renderWithContext(
+      testCeramicContext,
+      <DatastoreConnectionContext.Provider
+        value={{
+          connect: vi.fn(),
+          disconnect: vi.fn(),
+          dbAccessToken: "token",
+          dbAccessTokenStatus: "idle" as DbAuthTokenStatus,
+          did: vi.fn() as any,
+        }}
+      >
         <CeramicContext.Provider value={mockCeramicContext}>
           <StampClaimingContextProvider>
             <TestingComponent />
           </StampClaimingContextProvider>
         </CeramicContext.Provider>
-      </UserContext.Provider>
+      </DatastoreConnectionContext.Provider>
     );
 
   const renderTestComponentWithEvmStamp = () =>
-    render(
-      <UserContext.Provider value={mockTestUserContext}>
+    renderWithContext(
+      testCeramicContext,
+      <DatastoreConnectionContext.Provider
+        value={{
+          connect: vi.fn(),
+          disconnect: vi.fn(),
+          dbAccessToken: "token",
+          dbAccessTokenStatus: "idle" as DbAuthTokenStatus,
+          did: vi.fn() as any,
+        }}
+      >
         <CeramicContext.Provider value={mockCeramicContext}>
           <StampClaimingContextProvider>
             <TestingComponentWithEvmStamp />
           </StampClaimingContextProvider>
         </CeramicContext.Provider>
-      </UserContext.Provider>
+      </DatastoreConnectionContext.Provider>
     );
 
   beforeEach(() => {
-    (fetchVerifiableCredential as jest.Mock).mockImplementation(() => {
-      return { credentials: [] };
+    vi.mocked(fetchVerifiableCredential).mockImplementation(() => {
+      return { credentials: [] } as any;
     });
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it("should fetch all credentials specified when calling claimCredentials (non-EVM only)", async () => {
@@ -163,7 +188,7 @@ describe("<StampClaimingContext>", () => {
     // Click the claim button, which should call the `claimCredentials` function in the context
     await waitFor(async () => {
       const claimButton = screen.getByTestId("claim-button");
-      await fireEvent.click(claimButton);
+      fireEvent.click(claimButton);
     });
 
     // Verify that the `fetchVerifiableCredential` function has been called
@@ -172,6 +197,31 @@ describe("<StampClaimingContext>", () => {
 
     // Verify that the `handlePatchStamps` function has been called for the ceramic context
     expect(mockCeramicContext.handlePatchStamps).toHaveBeenCalledTimes(2);
+    expect(indicateError).toHaveBeenCalled();
+  });
+
+  it("should not indicate error if verification was successful", async () => {
+    vi.mocked(fetchVerifiableCredential).mockImplementation(() => {
+      return {
+        credentials: [
+          {
+            record: {
+              type: "Google",
+            },
+          } as ValidResponseBody,
+        ],
+      };
+    });
+
+    renderTestComponent();
+
+    // Click the claim button, which should call the `claimCredentials` function in the context
+    await waitFor(async () => {
+      const claimButton = screen.getByTestId("claim-button");
+      fireEvent.click(claimButton);
+    });
+
+    expect(indicateError).not.toHaveBeenCalled();
   });
 
   it("should fetch all credentials specified when calling claimCredentials (evm credentials included)", async () => {
@@ -180,7 +230,7 @@ describe("<StampClaimingContext>", () => {
     // Click the claim button, which should call the `claimCredentials` function in the context
     await waitFor(async () => {
       const claimButton = screen.getByTestId("claim-button");
-      await fireEvent.click(claimButton);
+      fireEvent.click(claimButton);
     });
 
     // Verify that the `fetchVerifiableCredential` function has been called

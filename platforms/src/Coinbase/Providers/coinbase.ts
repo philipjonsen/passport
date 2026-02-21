@@ -1,116 +1,157 @@
 // ----- Types
 import type { RequestPayload, VerifiedPayload } from "@gitcoin/passport-types";
-import { type Provider, type ProviderOptions } from "../../types";
+import type { Provider } from "../../types.js";
 import axios from "axios";
-import { handleProviderAxiosError } from "../../utils/handleProviderAxiosError";
+import { handleProviderAxiosError } from "../../utils/handleProviderAxiosError.js";
 
 export type CoinbaseTokenResponse = {
-  access_token: string;
+  access_token?: string;
 };
 
 export type CoinbaseUserData = {
-  id: string;
+  id?: string;
 };
 
 export type CoinbaseFindMyUserResponse = {
-  data?: CoinbaseUserData;
+  data?: {
+    data?: CoinbaseUserData;
+  };
+  status?: number;
 };
-
 export class CoinbaseProvider implements Provider {
   // Give the provider a type so that we can select it with a payload
-  type = "Coinbase";
+  type = "CoinbaseDualVerification";
 
-  // Options can be set here and/or via the constructor
-  _options = {};
-
-  // construct the provider instance with supplied options
-  constructor(options: ProviderOptions = {}) {
-    this._options = { ...this._options, ...options };
-  }
-
-  // verify that the proof object contains valid === "true"
   async verify(payload: RequestPayload): Promise<VerifiedPayload> {
-    try {
-      const errors = [];
-      let valid = false,
-        verifiedPayload: CoinbaseFindMyUserResponse = {},
-        record = undefined;
+    let errors;
+    let valid = false;
 
-      verifiedPayload = await verifyCoinbase(payload.proofs.code);
-
-      valid = verifiedPayload && verifiedPayload.data && verifiedPayload.data.id ? true : false;
-
-      if (valid) {
-        record = {
-          id: verifiedPayload.data.id,
-        };
+    const coinbaseAccountId = await verifyCoinbaseLogin(payload.proofs.code);
+    if (coinbaseAccountId) {
+      if (await verifyCoinbaseAttestation(payload.address)) {
+        valid = true;
       } else {
-        errors.push(`We could not verify your Coinbase account: ${verifiedPayload.data.id}.`);
+        errors = [`We could not find a Coinbase-verified onchain attestation for your account: ${coinbaseAccountId}.`];
       }
-
-      return {
-        valid,
-        errors,
-        record,
-      };
-    } catch (e: unknown) {
-      return {
-        valid: false,
-        record: undefined,
-        errors: [String(e)],
-      };
+    } else {
+      errors = ["Coinbase user id was not found."];
     }
+
+    return {
+      valid,
+      errors,
+      record: { id: coinbaseAccountId },
+    };
   }
 }
 
-export const requestAccessToken = async (code: string): Promise<string> => {
+// This is just for historical migration purposes. We always use 2 now
+export class CoinbaseProvider2 extends CoinbaseProvider {
+  type = "CoinbaseDualVerification2";
+}
+
+export const requestAccessToken = async (code: string): Promise<string | undefined> => {
   const clientId = process.env.COINBASE_CLIENT_ID;
   const clientSecret = process.env.COINBASE_CLIENT_SECRET;
   const callback = process.env.COINBASE_CALLBACK;
 
-  // Exchange the code for an access token
-  const tokenRequest = await axios.post(
-    `https://api.coinbase.com/oauth/token?grant_type=authorization_code&client_id=${clientId}&client_secret=${clientSecret}&code=${code}&redirect_uri=${callback}`,
-    {},
-    {
-      headers: { Accept: "application/json" },
-    }
-  );
+  let tokenRequest: { data?: CoinbaseTokenResponse };
+  try {
+    // Used to format POST body as expected
+    const params = new URLSearchParams();
+    params.append("grant_type", "authorization_code");
+    params.append("client_id", clientId);
+    params.append("client_secret", clientSecret);
+    params.append("code", code);
+    params.append("redirect_uri", callback);
 
-  if (tokenRequest.status != 200) {
-    throw `Post for request returned status code ${tokenRequest.status} instead of the expected 200`;
+    // Exchange the code for an access token
+    tokenRequest = await axios.post("https://login.coinbase.com/oauth2/token", params.toString(), {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+      },
+    });
+  } catch (e) {
+    console.log("error", e);
+    handleProviderAxiosError(e, "Coinbase access token", [clientSecret, code]);
   }
 
-  const tokenResponse = tokenRequest.data as CoinbaseTokenResponse;
-
-  return tokenResponse.access_token;
+  return tokenRequest?.data?.access_token;
 };
 
-export const verifyCoinbase = async (code: string): Promise<CoinbaseFindMyUserResponse> => {
-  let userRequest;
+export const verifyCoinbaseLogin = async (code: string): Promise<string | undefined> => {
+  let userResponse: CoinbaseFindMyUserResponse;
+  const accessToken = await requestAccessToken(code);
+
   try {
-    // retrieve user's auth bearer token to authenticate client
-    const accessToken = await requestAccessToken(code);
-
     // Now that we have an access token fetch the user details
-    userRequest = await axios.get("https://api.coinbase.com/v2/user", {
-      headers: { Authorization: `Bearer ${accessToken}` },
+    userResponse = await axios.get("https://api.coinbase.com/v2/user", {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
     });
-
-    if (userRequest.status != 200) {
-      throw `Get user request returned status code ${userRequest.status} instead of the expected 200`;
-    }
   } catch (e) {
-    const error = e as {
-      response: {
-        data: {
-          error_description: string;
-        };
-      };
-      request: string;
-      message: string;
-    };
-    handleProviderAxiosError(error, "Coinbase access token request error", [code]);
+    handleProviderAxiosError(e, "Coinbase user info", [accessToken, code]);
   }
-  return userRequest.data as CoinbaseFindMyUserResponse;
+
+  return userResponse?.data?.data?.id;
+};
+
+export const COINBASE_ATTESTER = "0x357458739F90461b99789350868CD7CF330Dd7EE";
+export const BASE_EAS_SCAN_URL = "https://base.easscan.org/graphql";
+export const VERIFIED_ACCOUNT_SCHEMA = "0xf8b05c79f090979bf4a80270aba232dff11a10d9ca55c4f88de95317970f0de9";
+
+export type Attestation = {
+  recipient: string;
+  revocationTime: number;
+  revoked: boolean;
+  expirationTime: number;
+  schema: {
+    id: string;
+  };
+};
+
+export type EASQueryResponse = {
+  data?: {
+    data?: {
+      attestations: Attestation[];
+    };
+  };
+};
+
+export const verifyCoinbaseAttestation = async (address: string): Promise<boolean> => {
+  const query = `
+    query {
+      attestations (where: {
+          attester: { equals: "${COINBASE_ATTESTER}" },
+          recipient: { equals: "${address}", mode: insensitive }
+      }) {
+        recipient
+        revocationTime
+        revoked
+        expirationTime
+        schema {
+          id
+        }
+      }
+    }
+  `;
+
+  let result: EASQueryResponse;
+  try {
+    result = await axios.post(BASE_EAS_SCAN_URL, {
+      query,
+    });
+  } catch (e) {
+    handleProviderAxiosError(e, "Coinbase attestation", []);
+  }
+
+  return (
+    (result?.data?.data?.attestations || []).filter(
+      (attestation) =>
+        attestation.revoked === false &&
+        attestation.revocationTime === 0 &&
+        attestation.expirationTime === 0 &&
+        attestation.schema.id === VERIFIED_ACCOUNT_SCHEMA
+    ).length > 0
+  );
 };

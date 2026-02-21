@@ -1,8 +1,9 @@
 /* eslint-disable */
 import { ProviderContext, RequestPayload, VerifiedPayload } from "@gitcoin/passport-types";
+import type { Address, SignMessageReturnType } from "viem";
 
 import { PLATFORM_ID, PROVIDER_ID } from "@gitcoin/passport-types";
-import { Platform as PlatformClass } from "./utils/platform";
+import { Platform as PlatformClass } from "./utils/platform.js";
 
 export type PlatformSpec = {
   icon?: string | undefined;
@@ -12,7 +13,11 @@ export type PlatformSpec = {
   connectMessage: string;
   isEVM?: boolean;
   enablePlatformCardUpdate?: boolean;
-  metaPointer?: string;
+  website?: string;
+  timeToGet?: string;
+  price?: string;
+  guide?: GuideSection[]; // Guide sections supporting steps, lists, etc.
+  cta?: StepAction; // Optional custom call-to-action
 };
 
 export type ProviderSpec = {
@@ -21,6 +26,7 @@ export type ProviderSpec = {
   hash?: string;
   icon?: string;
   description?: string;
+  isDeprecated?: boolean;
 };
 
 export type PlatformGroupSpec = {
@@ -90,6 +96,20 @@ export type AppContext = {
   callbackUrl?: string;
   selectedProviders: PROVIDER_ID[]; // can be used to translate to a scope when making an oauth request
   waitForRedirect(platform: PlatformClass, timeout?: number): Promise<ProviderPayload>;
+
+  // Optional properties for EVM platforms that need wallet functionality
+  address?: string;
+  signMessageAsync?: ({ message }: { message: string }) => Promise<string>;
+  sendTransactionAsync?: (variables: {
+    to: `0x${string}`;
+    value?: bigint;
+    data?: `0x${string}`;
+    gas?: bigint;
+    gasPrice?: bigint;
+    maxFeePerGas?: bigint;
+    maxPriorityFeePerGas?: bigint;
+  }) => Promise<`0x${string}`>;
+  switchChainAsync?: ({ chainId }: { chainId: number }) => Promise<any>;
 };
 
 export type PlatformBanner = {
@@ -105,9 +125,61 @@ export interface Platform {
   platformId: string;
   path?: string;
   banner?: PlatformBanner;
-  isEVM?: boolean;
   getOAuthUrl?(state: string): Promise<string>;
   getProviderPayload(appContext: AppContext): Promise<ProviderPayload>;
 }
+
+// Step item for step-by-step guides
+export interface StepItem {
+  title: string;
+  description: string;
+  actions?: StepAction[];
+  image?: {
+    src: string;
+    alt: string;
+  };
+}
+
+// Guide sections with discriminated union
+export type GuideSection =
+  | {
+      type: "steps";
+      title?: string; // defaults to "Step-by-Step Guide"
+      items: StepItem[];
+    }
+  | {
+      type: "list";
+      title?: string; // defaults to "Important considerations"
+      items: string[];
+      actions?: StepAction[];
+    };
+
+export type StepAction =
+  | {
+      label: string;
+      href: string; // For external links
+    }
+  | {
+      label: string;
+      onClick: ({
+        address,
+        signMessageAsync,
+        sendTransactionAsync,
+        switchChainAsync,
+      }: {
+        address: Address;
+        signMessageAsync: ({ message }: { message: string }) => Promise<SignMessageReturnType>;
+        sendTransactionAsync: (variables: {
+          to: `0x${string}`;
+          value?: bigint;
+          data?: `0x${string}`;
+          gas?: bigint;
+          gasPrice?: bigint;
+          maxFeePerGas?: bigint;
+          maxPriorityFeePerGas?: bigint;
+        }) => Promise<`0x${string}`>;
+        switchChainAsync: (params: { chainId: number }) => Promise<any>;
+      }) => void | Promise<void>; // For internal actions
+    };
 
 export type PlatformOptions = Record<string, unknown>;

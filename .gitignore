@@ -1,7 +1,10 @@
 node_modules
 .env
+.env.*
 .nvmrc
 .yarnrc
+.yalc
+yalc.lock
 
 # Logs
 logs
@@ -23,3 +26,10 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+schemas/.env.yarn
+
+# Do not ignore tehse files
+!.env.example
+
+.playwright-mcp

@@ -1,10 +1,9 @@
 // import React from "react";
 
 // --- Types
-import { PLATFORM_ID } from "@gitcoin/passport-types";
-import { CredentialResponseBody, PROVIDER_ID, VerifiableCredential } from "@gitcoin/passport-types";
+import { ValidResponseBody, CredentialResponseBody, PROVIDER_ID, VerifiableCredential } from "@gitcoin/passport-types";
 import axios, { AxiosResponse } from "axios";
-import { ProviderSpec, STAMP_PROVIDERS } from "../config/providers";
+import { parseAbi } from "viem";
 
 // --- Stamp Data Point Helpers
 export function difference(setA: Set<PROVIDER_ID>, setB: Set<PROVIDER_ID>) {
@@ -13,6 +12,10 @@ export function difference(setA: Set<PROVIDER_ID>, setB: Set<PROVIDER_ID>) {
     _difference.delete(elem);
   });
   return _difference;
+}
+
+export function intersect<T>(setA: Set<T>, setB: Set<T>): Set<T> {
+  return new Set([...setA].filter((item) => setB.has(item)));
 }
 
 export function generateUID(length: number) {
@@ -29,18 +32,28 @@ export function generateUID(length: number) {
 export function reduceStampResponse(providerIDs: PROVIDER_ID[], verifiedCredentials?: CredentialResponseBody[]) {
   if (!verifiedCredentials) return [];
   return verifiedCredentials
-    .filter(
-      (credential) =>
-        !credential.error && providerIDs.find((providerId: PROVIDER_ID) => credential?.record?.type === providerId)
-    )
+    .filter((credential): credential is ValidResponseBody => !("error" in credential && credential.error))
+    .filter((credential) => providerIDs.find((providerId: PROVIDER_ID) => credential?.record?.type === providerId))
     .map((credential) => ({
       provider: credential.record?.type as PROVIDER_ID,
       credential: credential.credential as VerifiableCredential,
     }));
 }
 
-export function checkShowOnboard(): boolean {
+// This is pulled out to support testing
+// Use `checkShowOnboard` instead
+export function _checkShowOnboard(currentOnboardResetIndex: string) {
+  const savedOnboardResetIndex = localStorage.getItem("onboardResetIndex");
+
+  localStorage.setItem("onboardResetIndex", currentOnboardResetIndex || "");
+
+  if (currentOnboardResetIndex && currentOnboardResetIndex !== savedOnboardResetIndex) {
+    localStorage.removeItem("onboardTS");
+    return true;
+  }
+
   const onboardTs = localStorage.getItem("onboardTS");
+
   if (!onboardTs) return true;
   // Get the current Unix timestamp in seconds.
   const currentTimestamp = Math.floor(Date.now() / 1000);
@@ -58,6 +71,35 @@ export function checkShowOnboard(): boolean {
   }
 
   return onBoardOlderThanThreeMonths;
+}
+
+/**
+ *
+ * @returns true if we are before the release date or false if not . or if no release date was configured
+ */
+export function beforeHumanPointsRelease() {
+  // This logic will make sure to return false if we are before the human points release date
+  if (process.env.NEXT_PUBLIC_HUMAN_POINTS_START_TIMESTAMP) {
+    const now = Date.now();
+    const releaseDate = Number.parseInt(process.env.NEXT_PUBLIC_HUMAN_POINTS_START_TIMESTAMP.trim());
+
+    if (Number.isInteger(releaseDate)) {
+      const humanPointsReleaseDateInMillis = releaseDate * 1000;
+      if (now < humanPointsReleaseDateInMillis) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+export function checkShowOnboard(): boolean {
+  const now = Date.now();
+  if (beforeHumanPointsRelease()) {
+    return false;
+  }
+  const currentOnboardResetIndex = process.env.NEXT_PUBLIC_ONBOARD_RESET_INDEX || "";
+  return _checkShowOnboard(currentOnboardResetIndex);
 }
 
 /**
@@ -90,19 +132,6 @@ export const graphql_fetch = async (endpoint: URL, query: string, variables: obj
 };
 
 /**
- * Retrieves the provider specification for a given platform and provider name.
- *
- * @param platform The platform ID.
- * @param provider The provider name.
- * @returns The provider specification if found, or undefined otherwise.
- */
-export const getProviderSpec = (platform: PLATFORM_ID, provider: string): ProviderSpec => {
-  return STAMP_PROVIDERS[platform]
-    ?.find((i) => i.providers.find((p) => p.name == provider))
-    ?.providers.find((p) => p.name == provider) as ProviderSpec;
-};
-
-/**
  * Checks if the server is on maintenance mode.
  *
  * @returns True if the server is on maintenance mode, false otherwise.
@@ -123,3 +152,39 @@ export const isServerOnMaintenance = () => {
 
   return false;
 };
+
+/**
+ * Create a signed payload using wallet signature (replaces DID-based signing)
+ * @param walletClient - The wallet client to sign with
+ * @param address - The user's address
+ * @param data - The data to sign
+ * @returns Signed payload compatible with IAM verification
+ */
+export const createWalletSignedPayload = async (
+  walletClient: any,
+  address: string,
+  data: any
+): Promise<{
+  signatures: string[];
+  payload: string;
+  message: string;
+}> => {
+  const message = typeof data === "string" ? data : JSON.stringify(data);
+
+  const signature = await walletClient.signMessage({
+    account: address as `0x${string}`,
+    message,
+  });
+
+  return {
+    signatures: [signature],
+    payload: message,
+    message,
+  };
+};
+
+// The parseAbi helper only works if we drop the word "tuple" from the human-readable abi
+export const cleanAndParseAbi = (abi: string[]) => parseAbi(abi.map((item) => item.replace(/tuple\(/g, "(")));
+
+// Multiplies value by multiplier only if multiplier > 0, otherwise returns value as is
+export const applyMultiplier = (value: number, multiplier: number) => (multiplier > 0 ? value * multiplier : value);

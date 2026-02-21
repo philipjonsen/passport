@@ -1,7 +1,6 @@
 import axios from "axios";
-import { Logger } from "./ceramicClient";
-import { DataStorageBase } from "./types";
-import type { DID as CeramicDID } from "dids";
+import { Logger } from "./logger.js";
+import { DataStorageBase } from "./types.js";
 import {
   PROVIDER_ID,
   Stamp,
@@ -10,6 +9,7 @@ import {
   PassportLoadErrorDetails,
   Passport,
   StampPatch,
+  ComposeDBMetadataRequest,
 } from "@gitcoin/passport-types";
 
 export class PassportDatabase implements DataStorageBase {
@@ -20,26 +20,33 @@ export class PassportDatabase implements DataStorageBase {
   logger: Logger;
   allowEmpty: boolean;
 
-  constructor(passportScorerUrl: string, address: string, token: string, logger?: Logger, did?: CeramicDID) {
+  constructor(passportScorerUrl: string, address: string, token: string, logger?: Logger, userAddress?: string) {
     this.passportScorerUrl = passportScorerUrl;
     this.address = address;
     this.logger = logger;
-    this.did = (did.hasParent ? did.parent : did.id).toLowerCase();
+    // Construct DID string from address for backward compatibility
+    this.did = `did:pkh:eip155:1:${(userAddress || address).toLowerCase()}`;
     this.allowEmpty = false;
     this.token = token;
   }
 
-  async createPassport(initialStamps?: Stamp[]): Promise<string> {
+  async createPassport(initialStamps?: Stamp[]): Promise<PassportLoadResponse> {
     if (initialStamps?.length) {
       await this.addStamps(initialStamps);
     } else {
       this.allowEmpty = true;
     }
 
-    return "created";
+    return {
+      status: "Success",
+    };
   }
 
-  processPassportResponse = async (request: Promise<any>, requestType: string): Promise<PassportLoadResponse> => {
+  processPassportResponse = async (
+    request: Promise<any>,
+    requestType: string,
+    allowEmpty?: boolean
+  ): Promise<PassportLoadResponse> => {
     let passport: Passport;
     let status: PassportLoadStatus = "Success";
     let errorDetails: PassportLoadErrorDetails;
@@ -49,11 +56,12 @@ export class PassportDatabase implements DataStorageBase {
       this.logger.info(`[Scorer] made ${requestType} request for passport for did ${this.did} => ${this.address}`);
 
       const { data } = response;
-      if (data && data.success && (this.allowEmpty || data.stamps.length !== 0)) {
+      if (data && data.success && (this.allowEmpty || allowEmpty || data.stamps.length !== 0)) {
         passport = {
           issuanceDate: null,
           expiryDate: null,
           stamps: data.stamps.map((stamp: any) => ({
+            id: stamp.id,
             provider: stamp.stamp?.credentialSubject?.provider,
             credential: stamp.stamp,
           })),
@@ -98,10 +106,6 @@ export class PassportDatabase implements DataStorageBase {
     );
   };
 
-  addStamp = async (stamp: Stamp): Promise<void> => {
-    console.log("Not implemented");
-  };
-
   deleteStamps = async (providers: PROVIDER_ID[]): Promise<PassportLoadResponse> => {
     this.logger.info(`deleting stamp from passportScorer for ${providers.join(", ")} on ${this.address}`);
     return await this.processPassportResponse(
@@ -109,7 +113,8 @@ export class PassportDatabase implements DataStorageBase {
         data: providers.map((provider) => ({ provider })),
         headers: { Authorization: `Bearer ${this.token}` },
       }),
-      "delete"
+      "delete",
+      true
     );
   };
 
@@ -118,6 +123,15 @@ export class PassportDatabase implements DataStorageBase {
     const body = stampPatches.map(({ provider, credential }) => ({ provider, stamp: credential }));
     return await this.processPassportResponse(
       axios.patch(`${this.passportScorerUrl}/stamps/bulk`, body, {
+        headers: { Authorization: `Bearer ${this.token}` },
+      }),
+      "patch"
+    );
+  };
+
+  patchStampComposeDBMetadata = async (composeDBMetadata: ComposeDBMetadataRequest[]): Promise<void> => {
+    await this.processPassportResponse(
+      axios.patch(`${this.passportScorerUrl}/stamps/bulk/meta/compose-db`, composeDBMetadata, {
         headers: { Authorization: `Bearer ${this.token}` },
       }),
       "patch"

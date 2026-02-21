@@ -1,11 +1,11 @@
-// For details on the google oauth2 flow, please check the following ressources:
+// For details on the google oauth2 flow, please check the following resources:
 //  - https://developers.google.com/identity/protocols/oauth2
 //  - https://developers.google.com/oauthplayground/
 
 // ----- Types
 import type { RequestPayload, VerifiedPayload } from "@gitcoin/passport-types";
-import { ProviderExternalVerificationError, type Provider, type ProviderOptions } from "../../types";
-import { getErrorString, ProviderError } from "../../utils/errors";
+import { ProviderExternalVerificationError, type Provider, type ProviderOptions } from "../../types.js";
+import { getErrorString, ProviderError } from "../../utils/errors.js";
 import axios from "axios";
 
 // Checking a valid tokenId for a result from Google will result in the following type

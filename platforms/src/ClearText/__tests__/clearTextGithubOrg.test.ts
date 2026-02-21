@@ -1,8 +1,7 @@
 // TODO - Remove once ts lint has been unified across packages
-/* eslint-disable @typescript-eslint/require-await */
-/* eslint-disable @typescript-eslint/unbound-method */
+
 // ---- Test subject
-import { ClearTextGithubOrgProvider, ClientType, GHUserRequestPayload } from "../Providers/clearTextGithubOrg";
+import { ClearTextGithubOrgProvider, ClientType, GHUserRequestPayload } from "../Providers/clearTextGithubOrg.js";
 
 // ----- Libs
 import axios from "axios";
@@ -88,7 +87,7 @@ describe("Attempt verification", function () {
     } as unknown as GHUserRequestPayload);
 
     // Check the request to get the token
-    expect(mockedAxios.post).toBeCalledWith(
+    expect(mockedAxios.post).toHaveBeenCalledWith(
       `https://github.com/login/oauth/access_token?client_id=${clientId}&client_secret=${clientSecret}&code=${code}`,
       {},
       {
@@ -97,12 +96,12 @@ describe("Attempt verification", function () {
     );
 
     // Check the request to get the user
-    expect(mockedAxios.get).toBeCalledWith("https://api.github.com/user", {
+    expect(mockedAxios.get).toHaveBeenCalledWith("https://api.github.com/user", {
       headers: { Authorization: "token 762165719dhiqudgasyuqwt6235" },
     });
 
     // Check the request to get the user's org
-    expect(mockedAxios.get).toBeCalledWith("https://api.github.com/users/my-login-handle/orgs", {
+    expect(mockedAxios.get).toHaveBeenCalledWith("https://api.github.com/users/my-login-handle/orgs", {
       headers: { Authorization: "token 762165719dhiqudgasyuqwt6235" },
     });
 
@@ -128,7 +127,7 @@ describe("Attempt verification", function () {
     } as unknown as GHUserRequestPayload);
 
     // Check the request to get the token
-    expect(mockedAxios.post).toBeCalledWith(
+    expect(mockedAxios.post).toHaveBeenCalledWith(
       `https://github.com/login/oauth/access_token?client_id=${clientId}&client_secret=${clientSecret}&code=${code}`,
       {},
       {

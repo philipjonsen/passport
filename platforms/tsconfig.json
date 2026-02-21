@@ -1,20 +1,18 @@
 {
   "extends": "../tsconfig.settings.json",
   "compilerOptions": {
-    "module": "commonjs",
+    "module": "NodeNext",
     "esModuleInterop": true,
     "declaration": true,
     "allowSyntheticDefaultImports": true,
-    "target": "es6",
+    "target": "ES2022",
+    "skipLibCheck": true,
     "noImplicitAny": true,
-    "moduleResolution": "node",
+    "moduleResolution": "nodenext",
     "sourceMap": true,
-    "outDir": "dist/commonjs",
+    "outDir": "dist/esm",
     "allowJs": true,
     "baseUrl": "src",
-    "paths": {
-      "*": ["../node_modules/*", "node_modules/*"]
-    },
     "jsx": "react",
     "lib": ["es6", "dom"]
   },

@@ -1,19 +1,28 @@
-import { PlatformSpec, PlatformGroupSpec, Provider } from "../types";
-import { EnsProvider } from "./Providers";
+import { PlatformSpec, PlatformGroupSpec, Provider } from "../types.js";
+import { EnsProvider } from "./Providers/index.js";
 
 export const PlatformDetails: PlatformSpec = {
   icon: "./assets/ensStampIcon.svg",
   platform: "Ens",
   name: "ENS",
-  description: "Purchase an .eth name to verify/ connect your existing account.",
+  description: "Verify ownership of your ENS domain",
   connectMessage: "Connect Account",
   isEVM: true,
+  website: "https://ens.domains/",
+  timeToGet: "5 minutes",
+  price: "Variable",
 };
 
 export const ProviderConfig: PlatformGroupSpec[] = [
   {
-    platformGroup: "Account Name",
-    providers: [{ title: "Encrypted", name: "Ens" }],
+    platformGroup: "Domain Verification",
+    providers: [
+      {
+        title: "ENS Domain Owner",
+        description: "Owned and configured an ENS domain as primary name, establishing decentralized identity",
+        name: "Ens",
+      },
+    ],
   },
 ];
 

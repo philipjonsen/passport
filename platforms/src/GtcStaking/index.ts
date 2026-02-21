@@ -1,10 +1,10 @@
-export { GTCStakingPlatform } from "./App-Bindings";
-export { PlatformDetails, ProviderConfig, providers } from "./Providers-config";
+export { GTCStakingPlatform } from "./App-Bindings.js";
+export { PlatformDetails, ProviderConfig, providers } from "./Providers-config.js";
 export {
   SelfStakingBronzeProvider,
   SelfStakingGoldProvider,
   SelfStakingSilverProvider,
-  CommunityStakingBronzeProvider,
-  CommunityStakingGoldProvider,
-  CommunityStakingSilverProvider,
-} from "./Providers";
+  BeginnerCommunityStakerProvider,
+  ExperiencedCommunityStakerProvider,
+  TrustedCitizenProvider,
+} from "./Providers/index.js";

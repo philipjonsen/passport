@@ -1,16 +1,16 @@
 // ----- Types
-import { ProviderExternalVerificationError, type Provider, type ProviderOptions } from "../../types";
+import { ProviderExternalVerificationError, type Provider, type ProviderOptions } from "../../types.js";
 import type { RequestPayload, VerifiedPayload } from "@gitcoin/passport-types";
 
 // ----- Libs
 import axios from "axios";
-import { utils } from "ethers";
+import { ethers } from "ethers";
 
 // ----- Credential verification
-import { getAddress } from "../../utils/signer";
+import { getAddress } from "../../utils/signer.js";
 
 // ----- Utils
-import { handleProviderAxiosError } from "../../utils/handleProviderAxiosError";
+import { handleProviderAxiosError } from "../../utils/handleProviderAxiosError.js";
 
 // https://safe-transaction.gnosis.io/
 export const gnosisSafeApiEndpoint = "https://safe-transaction-mainnet.safe.global/api/v1/";
@@ -40,14 +40,14 @@ export class GnosisSafeProvider implements Provider {
       const errors = [];
 
       // Get the address. Note: this is expected to be a checksumed address (this is what the gnosis safe API expects)
-      const address = utils.getAddress(await getAddress(payload));
+      const address = ethers.getAddress(await getAddress(payload));
 
       // Check if address is owner of at least 1 safe
       try {
         const ownerSafes = await getSafes(address);
         valid = !!ownerSafes.safes && ownerSafes.safes.length >= 1;
       } catch (e) {
-        errors.push((e as unknown).toString());
+        errors.push(String(e));
       }
 
       if (!valid && errors.length === 0) {

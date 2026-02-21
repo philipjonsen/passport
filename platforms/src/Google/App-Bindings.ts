@@ -1,9 +1,9 @@
-// For details on the google oauth2 flow, please check the following ressources:
+// For details on the google oauth2 flow, please check the following resources:
 //  - https://developers.google.com/identity/protocols/oauth2
 //  - https://developers.google.com/oauthplayground/
 
-import { PlatformOptions } from "../types";
-import { Platform } from "../utils/platform";
+import { PlatformOptions } from "../types.js";
+import { Platform } from "../utils/platform.js";
 
 export class GooglePlatform extends Platform {
   platformId = "Google";
@@ -15,6 +15,12 @@ export class GooglePlatform extends Platform {
     super();
     this.clientId = options.clientId as string;
     this.redirectUri = options.redirectUri as string;
+    this.banner = {
+      cta: {
+        label: "Learn more",
+        url: "https://support.passport.xyz/passport-knowledge-base/stamps/how-do-i-add-passport-stamps/connecting-a-google-account-to-passport",
+      },
+    };
   }
 
   getOAuthUrl(state: string): Promise<string> {

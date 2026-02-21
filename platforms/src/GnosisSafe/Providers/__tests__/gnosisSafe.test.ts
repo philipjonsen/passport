@@ -1,12 +1,12 @@
 /* eslint-disable */
 // ---- Test subject
-import { gnosisSafeApiEndpoint, GnosisSafeProvider } from "../gnosisSafe";
+import { gnosisSafeApiEndpoint, GnosisSafeProvider } from "../gnosisSafe.js";
 
 import { RequestPayload } from "@gitcoin/passport-types";
 
 // ----- Libs
 import axios from "axios";
-import { ProviderExternalVerificationError } from "../../../types";
+import { ProviderExternalVerificationError } from "../../../types.js";
 
 jest.mock("axios");
 
@@ -156,7 +156,11 @@ describe("Verification fails", function () {
       return await gnosisSafeProvider.verify({
         address: "",
       } as unknown as RequestPayload);
-    }).rejects.toThrow(new ProviderExternalVerificationError(`Error verifying Gnosis Safes: {"reason":"invalid address","code":"INVALID_ARGUMENT","argument":"address","value":""}`));
+    }).rejects.toThrow(
+      new ProviderExternalVerificationError(
+        `Error verifying Gnosis Safes: {"code":"INVALID_ARGUMENT","argument":"address","value":"","shortMessage":"invalid address"}`
+      )
+    );
     expect(axios.get).toHaveBeenCalledTimes(0);
   });
 });
